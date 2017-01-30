@@ -6,6 +6,8 @@ namespace OCA\CameraRawPreviews;
 use OCP\Preview\IProvider;
 
 
+// CameraRaw class: https://github.com/beije/php-camera-raw
+
 class CameraRaw
 {
     /**
