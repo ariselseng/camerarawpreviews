@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<info xmlns:xsi= "http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+    <id>camerarawpreviews</id>
+    <name>Camera Raw Previews</name>
+    <summary>Preview and show camera raw files in Nextcloud</summary>
+    <description><![CDATA[Description]]></description>
+    <licence>agpl</licence>
+    <author mail="ari@selseng.net" >Ari Selseng</author>
+    <version>0.0.1</version>
+    <namespace>CameraRawPreviews</namespace>
+    <category>tools</category>
+    <dependencies>
+        <owncloud min-version="9.2"/>
+        <nextcloud min-version="11" max-version="11"/>
+    </dependencies>
+</info>
