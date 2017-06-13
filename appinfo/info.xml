@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <info xmlns:xsi= "http://www.w3.org/2001/XMLSchema-instance"
       xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
-    <id>'preview_max_x' => null,</id>
+    <id>CameraRawPreviews</id>
     <name>CameraRawPreviews</name>
     <summary>Preview and show camera raw files in Nextcloud</summary>
     <description><![CDATA[Description]]></description>
