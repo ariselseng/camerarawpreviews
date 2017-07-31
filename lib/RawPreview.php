@@ -42,10 +42,11 @@ class RawPreview implements IProvider {
                 //check if image object is valid
                 return $image->valid() ? $image : false;
         }
-        
+
         private function getResizedPreview($tmpPath, $maxX, $maxY) {
+            $converter = \OC_Helper::findBinaryPath('exiftool');
             $im = new \Imagick();
-            $im->readImageBlob(shell_exec("exiftool -b -PreviewImage " . escapeshellarg($tmpPath)));
+            $im->readImageBlob(shell_exec($converter . " -b -PreviewImage " . escapeshellarg($tmpPath)));
             if (!$im->valid()) {
                 return false;
             }
