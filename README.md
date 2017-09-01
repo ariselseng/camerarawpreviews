@@ -8,4 +8,7 @@ Place this app in **nextcloud/apps/**
 
 To activate the feature you need to have this in your config:
 ```
-'enabledPreviewProviders' => array('OCA\\CameraRawPreviews\\RawPreview'),
+'enabledPreviewProviders' => array(
+  'OCA\\CameraRawPreviews\\RawPreview',
+  'OCA\\CameraRawPreviews\\IndesignPreview' // for indesign files (.indd)
+),

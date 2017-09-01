@@ -43,7 +43,7 @@ class RawPreview implements IProvider {
                 return $image->valid() ? $image : false;
         }
 
-        private function getResizedPreview($tmpPath, $maxX, $maxY) {
+        protected function getResizedPreview($tmpPath, $maxX, $maxY) {
             $converter = \OC_Helper::findBinaryPath('exiftool');
             $im = new \Imagick();
             $im->readImageBlob(shell_exec($converter . " -b -PreviewImage " . escapeshellarg($tmpPath)));
@@ -54,7 +54,7 @@ class RawPreview implements IProvider {
             unlink($tmpPath);
             return $im;
   	}
-	private function resize($im, $maxX, $maxY) {
+        protected function resize($im, $maxX, $maxY) {
 		list($previewWidth, $previewHeight) = array_values($im->getImageGeometry());
 
 		if ($previewWidth > $maxX || $previewHeight > $maxY) {
