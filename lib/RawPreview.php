@@ -55,7 +55,6 @@ class RawPreview implements IProvider {
 
         $this->rotateImageIfNeeded($im, $tmpPath);
         $this->resize($im, $maxX, $maxY);
-#        unlink($tmpPath);
         return $im;
     }
 
