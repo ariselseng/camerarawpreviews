@@ -59,6 +59,7 @@ class RawPreview implements IProvider {
     }
 
     private function rotateImageIfNeeded(\Imagick &$im, $path) {
+        $converter = \OC_Helper::findBinaryPath('exiftool');
         $rotate = 0;
         $flip = false;
 
