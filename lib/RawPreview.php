@@ -5,7 +5,11 @@ namespace OCA\CameraRawPreviews;
 use OCP\Preview\IProvider;
 
 class RawPreview implements IProvider {
-    private $converter = \OC_Helper::findBinaryPath('exiftool');
+    private $converter;
+
+    public function __construct() {
+        $this->converter = \OC_Helper::findBinaryPath('exiftool');
+    }
     
     /**
      * {@inheritDoc}
@@ -18,7 +22,8 @@ class RawPreview implements IProvider {
      * {@inheritDoc}
      */
     public function getThumbnail($path, $maxX, $maxY, $scalingup, $fileview) {
-        if (empty($converter)) {
+        if (empty($this->converter)) {
+            \OCP\Util::writeLog('core', 'Camera Raw Previews: converter not found.', \OCP\Util::ERROR);
             return false;
         }
         $tmpPath = $fileview->toTmpFile($path);
@@ -47,7 +52,7 @@ class RawPreview implements IProvider {
         
     private function getResizedPreview($tmpPath, $maxX, $maxY) {
         $im = new \Imagick();
-        $im->readImageBlob(shell_exec($converter . " -b -PreviewImage " . escapeshellarg($tmpPath)));
+        $im->readImageBlob(shell_exec($this->converter . " -b -PreviewImage " . escapeshellarg($tmpPath)));
 
         if (!$im->valid()) {
             return false;
@@ -62,7 +67,7 @@ class RawPreview implements IProvider {
         $rotate = 0;
         $flip = false;
 
-        $rotation = shell_exec($converter . " -n -b -Orientation " . escapeshellarg($path));
+        $rotation = shell_exec($this->converter . " -n -b -Orientation " . escapeshellarg($path));
         if ($rotation) {
             switch ($rotation) {
                 case "2":
@@ -92,7 +97,7 @@ class RawPreview implements IProvider {
             }
         }
         else {
-            $rotate = shell_exec($converter . " -b -Rotation " . escapeshellarg($path));
+            $rotate = shell_exec($this->converter . " -b -Rotation " . escapeshellarg($path));
         }
         if ($rotate) {
             $im->rotateImage(new \ImagickPixel(), $rotate);
