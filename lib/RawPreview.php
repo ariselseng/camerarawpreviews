@@ -5,6 +5,8 @@ namespace OCA\CameraRawPreviews;
 use OCP\Preview\IProvider;
 
 class RawPreview implements IProvider {
+    private $converter = \OC_Helper::findBinaryPath('exiftool');
+    
     /**
      * {@inheritDoc}
      */
@@ -16,7 +18,6 @@ class RawPreview implements IProvider {
      * {@inheritDoc}
      */
     public function getThumbnail($path, $maxX, $maxY, $scalingup, $fileview) {
-        $converter = \OC_Helper::findBinaryPath('exiftool');
         if (empty($converter)) {
             return false;
         }
@@ -27,7 +28,7 @@ class RawPreview implements IProvider {
 
         // Creates \Imagick object from bitmap or vector file
         try {
-            $im = $this->getResizedPreview($tmpPath, $maxX, $maxY, $converter);
+            $im = $this->getResizedPreview($tmpPath, $maxX, $maxY);
         } catch (\Exception $e) {
             \OCP\Util::writeLog('core', 'Camera Raw Previews: ' . $e->getmessage(), \OCP\Util::ERROR);
             return false;
@@ -44,8 +45,7 @@ class RawPreview implements IProvider {
         return $image->valid() ? $image : false;
     }
         
-    private function getResizedPreview($tmpPath, $maxX, $maxY, $converter) {
-        $converter = \OC_Helper::findBinaryPath('exiftool');
+    private function getResizedPreview($tmpPath, $maxX, $maxY) {
         $im = new \Imagick();
         $im->readImageBlob(shell_exec($converter . " -b -PreviewImage " . escapeshellarg($tmpPath)));
 
@@ -59,7 +59,6 @@ class RawPreview implements IProvider {
     }
 
     private function rotateImageIfNeeded(\Imagick &$im, $path) {
-        $converter = \OC_Helper::findBinaryPath('exiftool');
         $rotate = 0;
         $flip = false;
 
