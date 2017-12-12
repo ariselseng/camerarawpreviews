@@ -5,6 +5,12 @@ namespace OCA\CameraRawPreviews;
 use OCP\Preview\IProvider;
 
 class RawPreview implements IProvider {
+    private $converter;
+
+    public function __construct() {
+        $this->converter = \OC_Helper::findBinaryPath('exiftool');
+    }
+    
     /**
      * {@inheritDoc}
      */
@@ -16,8 +22,8 @@ class RawPreview implements IProvider {
      * {@inheritDoc}
      */
     public function getThumbnail($path, $maxX, $maxY, $scalingup, $fileview) {
-        $converter = \OC_Helper::findBinaryPath('exiftool');
-        if (empty($converter)) {
+        if (empty($this->converter)) {
+            \OCP\Util::writeLog('core', 'Camera Raw Previews: converter not found.', \OCP\Util::ERROR);
             return false;
         }
         $tmpPath = $fileview->toTmpFile($path);
@@ -27,7 +33,7 @@ class RawPreview implements IProvider {
 
         // Creates \Imagick object from bitmap or vector file
         try {
-            $im = $this->getResizedPreview($tmpPath, $maxX, $maxY, $converter);
+            $im = $this->getResizedPreview($tmpPath, $maxX, $maxY);
         } catch (\Exception $e) {
             \OCP\Util::writeLog('core', 'Camera Raw Previews: ' . $e->getmessage(), \OCP\Util::ERROR);
             return false;
@@ -44,10 +50,9 @@ class RawPreview implements IProvider {
         return $image->valid() ? $image : false;
     }
         
-    private function getResizedPreview($tmpPath, $maxX, $maxY, $converter) {
-        $converter = \OC_Helper::findBinaryPath('exiftool');
+    private function getResizedPreview($tmpPath, $maxX, $maxY) {
         $im = new \Imagick();
-        $im->readImageBlob(shell_exec($converter . " -b -PreviewImage " . escapeshellarg($tmpPath)));
+        $im->readImageBlob(shell_exec($this->converter . " -b -PreviewImage " . escapeshellarg($tmpPath)));
 
         if (!$im->valid()) {
             return false;
@@ -62,7 +67,7 @@ class RawPreview implements IProvider {
         $rotate = 0;
         $flip = false;
 
-        $rotation = shell_exec($converter . " -n -b -Orientation " . escapeshellarg($path));
+        $rotation = shell_exec($this->converter . " -n -b -Orientation " . escapeshellarg($path));
         if ($rotation) {
             switch ($rotation) {
                 case "2":
@@ -92,7 +97,7 @@ class RawPreview implements IProvider {
             }
         }
         else {
-            $rotate = shell_exec($converter . " -b -Rotation " . escapeshellarg($path));
+            $rotate = shell_exec($this->converter . " -b -Rotation " . escapeshellarg($path));
         }
         if ($rotate) {
             $im->rotateImage(new \ImagickPixel(), $rotate);
