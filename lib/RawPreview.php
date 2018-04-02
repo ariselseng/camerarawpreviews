@@ -1,13 +1,15 @@
 <?php
-
 namespace OCA\CameraRawPreviews;
+require __DIR__ . '/../vendor/autoload.php';
 
 use OCP\Preview\IProvider;
+use Intervention\Image\ImageManagerStatic as Image;
 
 class RawPreview implements IProvider {
     private $converter;
 
     public function __construct() {
+        Image::configure(array('driver' => extension_loaded('imagick') ? 'imagick' : 'gd'));
         $this->converter = realpath(__DIR__ . '/../vendor/jmoati/exiftool-bin/exiftool');
     }
     
@@ -37,9 +39,6 @@ class RawPreview implements IProvider {
             unlink($tmpPath);
         }
 
-        $im->setImageFormat('jpg');
-        $im->setImageCompressionQuality(90);
-        //new bitmap image object
         $image = new \OC_Image($im);
         //check if image object is valid
         return $image->valid() ? $image : false;
@@ -50,78 +49,37 @@ class RawPreview implements IProvider {
 
         if (isset($previewData[0]['JpgFromRaw'])) {
             return 'JpgFromRaw';
+        } else if (isset($previewData[0]['PageImage'])) {
+            return 'PageImage';
         } else if (isset($previewData[0]['PreviewImage'])) {
             return 'PreviewImage';
         } else {
-            throw new \Exception('Unable to find preview data.');
+            throw new \Exception('Unable to find preview data');
         }
     }
+
     private function getResizedPreview($tmpPath, $maxX, $maxY) {
         $previewTag = $this->getBestPreviewTag($tmpPath);
-        $im = new \Imagick();
-        $im->readImageBlob(shell_exec($this->converter . " -b -" . $previewTag . " " .  escapeshellarg($tmpPath)));
+        
+        //tmp
+        $previewImageTmpPath = dirname($tmpPath) . '/' . md5($tmpPath . uniqid()) . '.jpg';
 
-        if (!$im->valid()) {
-            return false;
+        //extract preview image using exiftool to file
+        shell_exec($this->converter . " -b -" . $previewTag . " " .  escapeshellarg($tmpPath) . ' > ' . escapeshellarg($previewImageTmpPath));
+        if (filesize($previewImageTmpPath) < 100) {
+            throw new \Exception('Unable to extract valid preview data');   
         }
+        //update previewImageTmpPath with orientation data
+        shell_exec($this->converter . ' -TagsFromFile '.  escapeshellarg($tmpPath) . ' -orientation ' . escapeshellarg($previewImageTmpPath));
 
-        $this->rotateImageIfNeeded($im, $tmpPath);
-        $this->resize($im, $maxX, $maxY);
-        return $im;
-    }
-
-    private function rotateImageIfNeeded(\Imagick &$im, $path) {
-        $rotate = 0;
-        $flip = false;
-
-        $rotation = shell_exec($this->converter . " -n -b -Orientation " . escapeshellarg($path));
-        if ($rotation) {
-            switch ($rotation) {
-                case "2":
-                    $rotate = 180;
-                    $flip = true;
-                    break;
-                case "3":
-                    $rotate = 180;
-                    break;
-                case "4":
-                    $flip = true;
-                    break;
-                case "5":
-                    $rotate = 270;
-                    $flip = true;
-                    break;
-                case "6":
-                    $rotate = 90;
-                    break;
-                case "7":
-                    $rotate = 90;
-                    $flip = true;
-                    break;
-                case "8":
-                    $rotate = 270;
-                    break;
-            }
-        }
-        else {
-            $rotate = shell_exec($this->converter . " -b -Rotation " . escapeshellarg($path));
-        }
-        if ($rotate) {
-            $im->rotateImage(new \ImagickPixel(), $rotate);
-        }
-        if ($flip) {
-            $im->flipImage();
-        }
-    }
-
-    private function resize(\Imagick &$im, $maxX, $maxY) {
-        list($previewWidth, $previewHeight) = array_values($im->getImageGeometry());
-
-        if ($previewWidth > $maxX || $previewHeight > $maxY) {
-            $im->resizeImage($maxX, $maxY, \imagick::FILTER_CATROM, 1, true);
-        }
-
-        return $im;
+        $im = Image::make($previewImageTmpPath);
+        $im->orientate();
+        $im->resize($maxX, $maxY, function ($constraint) {
+            $constraint->aspectRatio();
+            $constraint->upsize();
+        });
+        unlink($previewImageTmpPath);
+        return $im->encode('jpg', 90);
     }
 
     public function isAvailable(\OCP\Files\FileInfo $file) {

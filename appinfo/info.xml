@@ -14,7 +14,6 @@
     <dependencies>
         <owncloud min-version="9.1"/>
         <nextcloud min-version="11" max-version="13"/>
-        <lib>imagick</lib>
         <command>perl</command>
     </dependencies>
     <types><filesystem/></types>
