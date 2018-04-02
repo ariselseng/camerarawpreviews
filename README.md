@@ -1,12 +1,16 @@
 # Camera RAW Previews
-Place this app in **nextcloud/apps/**
+A Nextcloud app that provides previews for camera RAW images like .NEF, .CR2, etc.
 
 ## Requirements
-* imagick module for php
-* exiftool command needs to be available
-* Probably memory_limit quite high.
+* Probably **memory_limit** quite high.
+* **imagick** or **gd** module. If imagick is available, it will use that for performance.
 
-To activate the feature you need to have this in your config:
+
+## Installation
+Place this app in **nextcloud/apps/**
+
+
+To activate the feature you probably need to have this in your config:
 ```
 'enabledPreviewProviders' => array(
   'OCA\\CameraRawPreviews\\RawPreview',
