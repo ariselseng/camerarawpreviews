@@ -8,7 +8,7 @@ class RawPreview implements IProvider {
     private $converter;
 
     public function __construct() {
-        $this->converter = \OC_Helper::findBinaryPath('exiftool');
+        $this->converter = realpath(__DIR__ . '/../vendor/jmoati/exiftool-bin/exiftool');
     }
     
     /**
@@ -22,10 +22,6 @@ class RawPreview implements IProvider {
      * {@inheritDoc}
      */
     public function getThumbnail($path, $maxX, $maxY, $scalingup, $fileview) {
-        if (empty($this->converter)) {
-            \OCP\Util::writeLog('core', 'Camera Raw Previews: converter not found.', \OCP\Util::ERROR);
-            return false;
-        }
         $tmpPath = $fileview->toTmpFile($path);
         if (!$tmpPath) {
             return false;

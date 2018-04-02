@@ -1,0 +1,15 @@
+{
+    "name": "cowai/camerarawpreviews",
+    "type": "project",
+    "require": {
+        "jmoati/exiftool-bin": "^10.83"
+    },
+    "license": "agpl",
+    "authors": [
+        {
+            "name": "Ari Selseng",
+            "email": "ari@selseng.net"
+        }
+    ],
+    "minimum-stability": "stable"
+}

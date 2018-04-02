@@ -1,0 +1,45 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "630947e9a70b5929349e01884de6300b",
+    "packages": [
+        {
+            "name": "jmoati/exiftool-bin",
+            "version": "10.83",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Jmoati/exiftool-bin.git",
+                "reference": "eb51526d81a9a320958df8d89689c5096b9ab7bf"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Jmoati/exiftool-bin/zipball/eb51526d81a9a320958df8d89689c5096b9ab7bf",
+                "reference": "eb51526d81a9a320958df8d89689c5096b9ab7bf",
+                "shasum": ""
+            },
+            "type": "library",
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Jacques Moati",
+                    "email": "jacques@moati.net"
+                }
+            ],
+            "time": "2018-03-08T07:29:56+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": [],
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": [],
+    "platform-dev": []
+}
