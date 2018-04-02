@@ -44,18 +44,20 @@ class RawPreview implements IProvider {
         //check if image object is valid
         return $image->valid() ? $image : false;
     }
-        
-    private function getResizedPreview($tmpPath, $maxX, $maxY) {
+    private function getBestPreviewTag($tmpPath) {
         //get all available previews
         $previewData = json_decode(shell_exec($this->converter . " -json -preview:all " . escapeshellarg($tmpPath)), true);
 
         if (isset($previewData[0]['JpgFromRaw'])) {
-            $previewTag = 'JpgFromRaw';
+            return 'JpgFromRaw';
         } else if (isset($previewData[0]['PreviewImage'])) {
-            $previewTag = 'PreviewImage';
+            return 'PreviewImage';
         } else {
             throw new \Exception('Unable to find preview data.');
         }
+    }
+    private function getResizedPreview($tmpPath, $maxX, $maxY) {
+        $previewTag = $this->getBestPreviewTag($tmpPath);
         $im = new \Imagick();
         $im->readImageBlob(shell_exec($this->converter . " -b -" . $previewTag . " " .  escapeshellarg($tmpPath)));
 
