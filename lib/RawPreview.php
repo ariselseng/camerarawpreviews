@@ -10,7 +10,14 @@ class RawPreview implements IProvider {
 
     public function __construct() {
         Image::configure(array('driver' => extension_loaded('imagick') ? 'imagick' : 'gd'));
-        $this->converter = realpath(__DIR__ . '/../vendor/jmoati/exiftool-bin/exiftool');
+
+        $perl_bin = \OC_Helper::findBinaryPath('perl');
+        //fallback to static vendored perl
+        if (empty($perl_bin) && substr(php_uname("m"), 0, 3) === 'x86') {
+            $perl_bin = realpath(__DIR__ . '/../bin/staticperl');
+        }
+
+        $this->converter = $perl_bin . ' ' . realpath(__DIR__ . '/../vendor/jmoati/exiftool-bin/exiftool');
     }
     
     /**
