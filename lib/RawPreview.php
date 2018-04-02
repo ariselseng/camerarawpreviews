@@ -9,7 +9,7 @@ class RawPreview implements IProvider {
     private $converter;
 
     public function __construct() {
-        Image::configure(array('driver' => extension_loaded('imagick') ? 'imagick' : 'gd'));
+        Image::configure(array('driver' => extension_loaded('imagick') && count(\Imagick::queryformats('JPEG')) > 0 ? 'imagick' : 'gd'));
 
         $perl_bin = \OC_Helper::findBinaryPath('perl');
         //fallback to static vendored perl
