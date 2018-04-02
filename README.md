@@ -1,4 +1,4 @@
-# Camera Raw Previews
+# Camera RAW Previews
 Place this app in **nextcloud/apps/**
 
 ## Requirements
