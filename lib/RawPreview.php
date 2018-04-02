@@ -31,7 +31,6 @@ class RawPreview implements IProvider {
             return false;
         }
 
-        // Creates \Imagick object from bitmap or vector file
         try {
             $im = $this->getResizedPreview($tmpPath, $maxX, $maxY);
         } catch (\Exception $e) {
