@@ -77,7 +77,7 @@ class RawPreview implements IProvider {
             throw new \Exception('Unable to extract valid preview data');   
         }
         //update previewImageTmpPath with orientation data
-        shell_exec($this->converter . ' -TagsFromFile '.  escapeshellarg($tmpPath) . ' -orientation ' . escapeshellarg($previewImageTmpPath));
+        shell_exec($this->converter . ' -TagsFromFile '.  escapeshellarg($tmpPath) . ' -orientation -overwrite_original ' . escapeshellarg($previewImageTmpPath));
 
         $im = Image::make($previewImageTmpPath);
         $im->orientate();
