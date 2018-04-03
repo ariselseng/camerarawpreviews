@@ -15,6 +15,9 @@ class RawPreview implements IProvider {
         //fallback to static vendored perl
         if (empty($perl_bin) && substr(php_uname("m"), 0, 3) === 'x86') {
             $perl_bin = realpath(__DIR__ . '/../bin/staticperl');
+            if (!is_executable($perl_bin) && is_writable($perl_bin)) {
+                chmod($perl_bin, 0744);
+            }
         }
 
         $this->converter = $perl_bin . ' ' . realpath(__DIR__ . '/../vendor/jmoati/exiftool-bin/exiftool');
