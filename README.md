@@ -1,5 +1,7 @@
 # Camera RAW Previews
 A Nextcloud app that provides previews for camera RAW images like .NEF, .CR2, etc.
+This app also gives you preview of Adobe Indesign files.
+
 
 ## Requirements
 * Probably **memory_limit** quite high.
