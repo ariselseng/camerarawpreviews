@@ -16,7 +16,7 @@ To activate the feature you probably need to have this in your config:
   'OCA\\CameraRawPreviews\\RawPreview',
   'OCA\\CameraRawPreviews\\IndesignPreview' // for indesign files (.indd)
 ),
-
+```
 ## Donation
 If this app helps you in your business, it would be nice to give me a cup of coffee :)
 
