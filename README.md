@@ -9,7 +9,13 @@ This app also gives you preview of Adobe Indesign files.
 
 
 ## Installation
-Place this app in **nextcloud/apps/**
+Install in Nextcloud App store.
+https://apps.nextcloud.com/apps/camerarawpreviews
+
+## Building locally
+- Run "make"
+- Place this app in **nextcloud/apps/**
+
 
 
 To activate the feature you probably need to have this in your config:
