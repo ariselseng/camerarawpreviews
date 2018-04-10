@@ -16,15 +16,6 @@ https://apps.nextcloud.com/apps/camerarawpreviews
 - Run "make"
 - Place this app in **nextcloud/apps/**
 
-
-
-To activate the feature you probably need to have this in your config:
-```
-'enabledPreviewProviders' => array(
-  'OCA\\CameraRawPreviews\\RawPreview',
-  'OCA\\CameraRawPreviews\\IndesignPreview' // for indesign files (.indd)
-),
-```
 ## Donation
 If this app helps you in your business, it would be nice to give me a cup of coffee :)
 
