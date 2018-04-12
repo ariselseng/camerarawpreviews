@@ -1,4 +1,6 @@
 # Camera RAW Previews
+[![downloadcount](https://img.shields.io/github/downloads/cowai/camerarawpreviews/total.svg)](https://github.com/cowai/camerarawpreviews/releases) [![paypal](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/AriSelseng/2EUR)
+
 A Nextcloud app that provides previews for camera RAW images like .NEF, .CR2, etc.
 This app also gives you preview of Adobe Indesign files.
 
@@ -15,8 +17,3 @@ https://apps.nextcloud.com/apps/camerarawpreviews
 ## Building locally
 - Run "make"
 - Place this app in **nextcloud/apps/**
-
-## Donation
-If this app helps you in your business, it would be nice to give me a cup of coffee :)
-
-[![paypal](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/AriSelseng/2EUR)
