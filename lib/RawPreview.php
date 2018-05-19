@@ -7,9 +7,13 @@ use Intervention\Image\ImageManagerStatic as Image;
 
 class RawPreview implements IProvider {
     private $converter;
+    private $driver = 'gd';
 
     public function __construct() {
-        Image::configure(array('driver' => extension_loaded('imagick') && count(\Imagick::queryformats('JPEG')) > 0 ? 'imagick' : 'gd'));
+        if (extension_loaded('imagick') && count(\Imagick::queryformats('JPEG')) > 0) {
+            $this->driver = 'imagick';
+        }
+        Image::configure(array('driver' => $this->driver));
 
         $perl_bin = \OC_Helper::findBinaryPath('perl');
         //fallback to static vendored perl
@@ -63,6 +67,12 @@ class RawPreview implements IProvider {
             return 'PageImage';
         } else if (isset($previewData[0]['PreviewImage'])) {
             return 'PreviewImage';
+        } else if (isset($previewData[0]['PreviewTIFF'])) {
+            if ($this->driver === 'imagick') {
+                return 'PreviewTIFF';
+            } else {
+                throw new \Exception('Needs imagick to extract TIFF previews');
+            }
         } else {
             throw new \Exception('Unable to find preview data');
         }
