@@ -128,25 +128,21 @@ source:
 appstore:
 	rm -rf $(appstore_build_directory)
 	mkdir -p $(appstore_build_directory)
-	tar cvzf $(appstore_package_name).tar.gz ../$(app_name) \
-	--exclude-vcs \
-	--exclude="../$(app_name)/build" \
-	--exclude="../$(app_name)/tests" \
-	--exclude="../$(app_name)/Makefile" \
-	--exclude="../$(app_name)/*.log" \
-	--exclude="../$(app_name)/phpunit*xml" \
-	--exclude="../$(app_name)/composer.*" \
-	--exclude="../$(app_name)/js/node_modules" \
-	--exclude="../$(app_name)/js/tests" \
-	--exclude="../$(app_name)/js/test" \
-	--exclude="../$(app_name)/js/*.log" \
-	--exclude="../$(app_name)/js/package.json" \
-	--exclude="../$(app_name)/js/bower.json" \
-	--exclude="../$(app_name)/js/karma.*" \
-	--exclude="../$(app_name)/js/protractor.*" \
-	--exclude="../$(app_name)/package.json" \
-	--exclude="../$(app_name)/bower.json" \
-	--exclude="../$(app_name)/karma.*" \
-	--exclude="../$(app_name)/protractor\.*" \
-	--exclude="../$(app_name)/.*" \
-	--exclude="../$(app_name)/js/.*" \
+	rsync -r ../$(app_name)/ $(appstore_build_directory)/$(app_name) \
+	--exclude ".git" \
+	--exclude="build" \
+	--exclude="tests" \
+	--exclude="Makefile" \
+	--exclude="*.log" \
+	--exclude="phpunit*xml" \
+	--exclude="composer.*" \
+	--exclude="package.json" \
+	--exclude=".*" \
+	--exclude="sign-*.sh"
+	
+	docker run --user 1000 --rm -v $(appstore_build_directory)/$(app_name):/$(app_name) -v ~/.owncloud/certificates:/certs owncloud/server:10.0 php occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
+	tar -czlf build/$(app_name)_owncloud.tar.gz -C "$(appstore_build_directory)" $(app_name)
+	rm "$(appstore_build_directory)"/$(app_name)/appinfo/signature.json
+	docker run --user 1000 --rm -v $(appstore_build_directory)/$(app_name):/$(app_name) -v ~/.nextcloud/certificates:/certs nextcloud:fpm php occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
+	tar -czf build/$(app_name)_nextcloud.tar.gz -C "$(appstore_build_directory)" $(app_name)
+	
