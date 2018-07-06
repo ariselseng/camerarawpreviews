@@ -15,6 +15,7 @@ Install in Nextcloud App store.
 https://apps.nextcloud.com/apps/camerarawpreviews
 
 Install in ownCloud Marketplace
+https://marketplace.owncloud.com/apps/camerarawpreviews
 
 ## Building locally
 - Run "make"

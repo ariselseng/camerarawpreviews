@@ -9,11 +9,13 @@
     <licence>agpl</licence>
     <author mail="ari@selseng.net" >Ari Selseng</author>
     <namespace>CameraRawPreviews</namespace>
+    <screenshot>https://raw.githubusercontent.com/cowai/camerarawpreviews/master/screenshots/screenshot1.png</screenshot>
     <category>files</category>
+    <category>multimedia</category>
     <bugs>https://github.com/cowai/camerarawpreviews/issues</bugs>
     <dependencies>
-        <owncloud min-version="9.1"/>
-        <nextcloud min-version="11" max-version="13"/>
+        <owncloud min-version="10.0" max-version="10.0" />
+        <nextcloud min-version="11" max-version="13" />
     </dependencies>
     <types><filesystem/></types>
 </info>
