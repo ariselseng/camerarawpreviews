@@ -16,11 +16,18 @@ class RawPreview implements IProvider {
         Image::configure(array('driver' => $this->driver));
 
         $perl_bin = \OC_Helper::findBinaryPath('perl');
-        //fallback to static vendored perl
-        if (empty($perl_bin) && substr(php_uname("m"), 0, 3) === 'x86') {
-            $perl_bin = realpath(__DIR__ . '/../bin/staticperl');
-            if (!is_executable($perl_bin) && is_writable($perl_bin)) {
-                chmod($perl_bin, 0744);
+        if (empty($perl_bin)) {
+            $perl_bin = exec("command -v perl");
+        }
+        if (empty($perl_bin)) {
+            //fallback to static vendored perl
+            if (php_uname("s") === "Linux" && substr(php_uname("m"), 0, 3) === 'x86') {
+                $perl_bin = realpath(__DIR__ . '/../bin/staticperl');
+                if (!is_executable($perl_bin) && is_writable($perl_bin)) {
+                    chmod($perl_bin, 0744);
+                }
+            } else {
+                $perl_bin = "perl";
             }
         }
 
