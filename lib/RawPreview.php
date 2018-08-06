@@ -3,11 +3,13 @@ namespace OCA\CameraRawPreviews;
 require __DIR__ . '/../vendor/autoload.php';
 
 use OCP\Preview\IProvider;
+use OCP\Image as OCP_Image;
 use Intervention\Image\ImageManagerStatic as Image;
 
 class RawPreview implements IProvider {
     private $converter;
     private $driver = 'gd';
+
 
     public function __construct() {
         if (extension_loaded('imagick') && count(\Imagick::queryformats('JPEG')) > 0) {
@@ -33,7 +35,6 @@ class RawPreview implements IProvider {
 
         $this->converter = $perl_bin . ' ' . realpath(__DIR__ . '/../vendor/jmoati/exiftool-bin/exiftool');
     }
-    
     /**
      * {@inheritDoc}
      */
@@ -59,9 +60,10 @@ class RawPreview implements IProvider {
         finally {
             unlink($tmpPath);
         }
+        $image = new OCP_Image();
+        $image->loadFromData($im);
 
-        $image = new \OC_Image($im);
-        //check if image object is valid
+        // //check if image object is valid
         return $image->valid() ? $image : false;
     }
     private function getBestPreviewTag($tmpPath) {
