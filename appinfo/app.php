@@ -1,15 +1,27 @@
 <?php
 
 use OCP\AppFramework\App;
-$app       = new App('camerarawpreviews');
-$container = $app->getContainer();
+$app              = new App('camerarawpreviews');
+$container        = $app->getContainer();
 $mimeTypeDetector = \OC::$server->getMimeTypeDetector();
-$mimeTypeLoader   = \OC::$server->getMimeTypeLoader();
-// Register custom mimetype we can hook in the frontend
-$mimeTypeDetector->getAllMappings();
-$mimeTypeDetector->registerType('indd', 'image/x-indesign', 'application/x-indesign');
+
+$mimes           = $mimeTypeDetector->getAllMappings();
+$mimes_to_detect = [
+	'crw' => 'image/x-canon-crw',
+	'indd' => 'image/x-indesign',
+	'mrw' => 'image/x-minolta-mrw',
+	'nrw' => 'image/x-raw-nikon',
+	'rw2' => 'image/x-panasonic-rw2',
+	'srw' => 'image/x-samsung-srw'
+];
+foreach ($mimes_to_detect as $key => $mime) {
+    if (!isset($mimes[$key])) {
+        $mimeTypeDetector->registerType($key, $mime);
+    }
+}
 
 $previewManager = $container->getServer()->query('PreviewManager');
 
-$previewManager->registerProvider('/image\/x-dcraw/', function () {return new \OCA\CameraRawPreviews\RawPreview;});
-$previewManager->registerProvider('/image\/x-indesign/', function () {return new \OCA\CameraRawPreviews\IndesignPreview;});
+$previewManager->registerProvider('/^((image\/x-dcraw)|(image\/x-canon-crw)|(image\/x-minolta-mrw)|(image\/x-panasonic-rw2)|(image\/x-samsung-srw)|(image\/x-raw-nikon)|(image\/x-indesign))(;+.*)*$/', function () {
+    return new \OCA\CameraRawPreviews\RawPreview;
+});
