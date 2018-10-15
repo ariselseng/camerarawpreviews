@@ -7,21 +7,37 @@ $mimeTypeDetector = \OC::$server->getMimeTypeDetector();
 
 $mimes           = $mimeTypeDetector->getAllMappings();
 $mimes_to_detect = [
-	'crw' => 'image/x-canon-crw',
-	'indd' => 'image/x-indesign',
-	'mrw' => 'image/x-minolta-mrw',
-	'nrw' => 'image/x-raw-nikon',
-	'rw2' => 'image/x-panasonic-rw2',
-	'srw' => 'image/x-samsung-srw'
+    'indd' => ['image/x-indesign'],
+    '3fr'  => ['image/x-dcraw'],
+    'arw'  => ['image/x-dcraw'],
+    'cr2'  => ['image/x-dcraw'],
+    'cr3'  => ['image/x-dcraw'],
+    'crw'  => ['image/x-dcraw'],
+    'dng'  => ['image/x-dcraw'],
+    'erf'  => ['image/x-dcraw'],
+    'fff'  => ['image/x-dcraw'],
+    'iiq'  => ['image/x-dcraw'],
+    'kdc'  => ['image/x-dcraw'],
+    'mrw'  => ['image/x-dcraw'],
+    'nef'  => ['image/x-dcraw'],
+    'nrw'  => ['image/x-dcraw'],
+    'orf'  => ['image/x-dcraw'],
+    'ori'  => ['image/x-dcraw'],
+    'pef'  => ['image/x-dcraw'],
+    'raf'  => ['image/x-dcraw'],
+    'rw2'  => ['image/x-dcraw'],
+    'rwl'  => ['image/x-dcraw'],
+    'sr2'  => ['image/x-dcraw'],
+    'srf'  => ['image/x-dcraw'],
+    'srw'  => ['image/x-dcraw'],
+    'tif'  => ['image/x-dcraw'],
+    'x3f'  => ['image/x-dcraw'],
 ];
-foreach ($mimes_to_detect as $key => $mime) {
-    if (!isset($mimes[$key])) {
-        $mimeTypeDetector->registerType($key, $mime);
-    }
-}
+
+$mimeTypeDetector->registerTypeArray($mimes_to_detect);
 
 $previewManager = $container->getServer()->query('PreviewManager');
 
-$previewManager->registerProvider('/^((image\/x-dcraw)|(image\/x-canon-crw)|(image\/x-minolta-mrw)|(image\/x-panasonic-rw2)|(image\/x-samsung-srw)|(image\/x-raw-nikon)|(image\/x-indesign))(;+.*)*$/', function () {
+$previewManager->registerProvider('/^((image\/x-dcraw)|(image\/x-indesign))(;+.*)*$/', function () {
     return new \OCA\CameraRawPreviews\RawPreview;
 });

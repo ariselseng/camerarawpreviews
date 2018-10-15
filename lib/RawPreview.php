@@ -45,7 +45,7 @@ class RawPreviewBase
      */
     public function getMimeType()
     {
-        return '/^((image\/x-dcraw)|(image\/x-canon-crw)|(image\/x-minolta-mrw)|(image\/x-panasonic-rw2)|(image\/x-samsung-srw)|(image\/x-raw-nikon)|(image\/x-indesign))(;+.*)*$/';
+        return '/^((image\/x-dcraw)|(image\/x-indesign))(;+.*)*$/';
     }
 
     protected function getBestPreviewTag($tmpPath)
@@ -59,9 +59,20 @@ class RawPreviewBase
             return 'PageImage';
         } else if (isset($previewData[0]['PreviewImage'])) {
             return 'PreviewImage';
-        } else if (isset($previewData[0]['PreviewTIFF']) || isset($previewData[0]['ThumbnailTIFF'])) {
+        } else if (isset($previewData[0]['OtherImage'])) {
+            return 'OtherImage';
+        }
+        else if (isset($previewData[0]['ThumbnailImage'])) {
+            return 'ThumbnailImage';
+        } else if (isset($previewData[0]['PreviewTIFF'])) {
             if ($this->driver === 'imagick') {
                 return 'PreviewTIFF';
+            } else {
+                throw new \Exception('Needs imagick to extract TIFF previews');
+            }
+        } else if (isset($previewData[0]['ThumbnailTIFF'])) {
+            if ($this->driver === 'imagick') {
+                return 'ThumbnailTIFF';
             } else {
                 throw new \Exception('Needs imagick to extract TIFF previews');
             }
