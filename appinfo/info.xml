@@ -5,7 +5,7 @@
     <name>Camera RAW Previews</name>
     <summary>Preview and show camera RAW files in Nextcloud/ownCloud</summary>
     <description><![CDATA[This app will make previews of &quot;RAW&quot; files from cameras in Nextcloud/ownCloud.]]></description>
-    <version>0.6.1</version>
+    <version>0.6.2</version>
     <licence>agpl</licence>
     <author mail="ari@selseng.net" >Ari Selseng</author>
     <namespace>CameraRawPreviews</namespace>
