@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "1be507cfe82f8df32839f40c3a635e33",
+    "content-hash": "9a03ee399e71ba8995f9889628453612",
     "packages": [
         {
             "name": "guzzlehttp/psr7",
@@ -145,16 +145,16 @@
         },
         {
             "name": "jmoati/exiftool-bin",
-            "version": "10.83",
+            "version": "11.26",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Jmoati/exiftool-bin.git",
-                "reference": "eb51526d81a9a320958df8d89689c5096b9ab7bf"
+                "reference": "b957552a65b27fe79e8d5ed50392e0ad9b9601f1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Jmoati/exiftool-bin/zipball/eb51526d81a9a320958df8d89689c5096b9ab7bf",
-                "reference": "eb51526d81a9a320958df8d89689c5096b9ab7bf",
+                "url": "https://api.github.com/repos/Jmoati/exiftool-bin/zipball/b957552a65b27fe79e8d5ed50392e0ad9b9601f1",
+                "reference": "b957552a65b27fe79e8d5ed50392e0ad9b9601f1",
                 "shasum": ""
             },
             "type": "library",
@@ -168,7 +168,7 @@
                     "email": "jacques@moati.net"
                 }
             ],
-            "time": "2018-03-08T07:29:56+00:00"
+            "time": "2019-02-10T08:54:44+00:00"
         },
         {
             "name": "psr/http-message",

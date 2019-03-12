@@ -2,8 +2,8 @@
     "name": "cowai/camerarawpreviews",
     "type": "project",
     "require": {
-        "jmoati/exiftool-bin": "^10.83",
-        "intervention/image": "^2.4"
+        "jmoati/exiftool-bin": "^11.26",
+        "intervention/image": "^2.4.2"
     },
     "license": "agpl",
     "authors": [
