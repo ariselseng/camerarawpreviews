@@ -3,8 +3,11 @@
 use OCP\AppFramework\App;
 $app              = new App('camerarawpreviews');
 $container        = $app->getContainer();
+$eventDispatcher = \OC::$server->getEventDispatcher();
+$eventDispatcher->addListener('OCA\Files::loadAdditionalScripts', function() {
+  script('camerarawpreviews', 'register-viewer');  // adds js/script.js
+});
 $mimeTypeDetector = \OC::$server->getMimeTypeDetector();
-
 $mimes           = $mimeTypeDetector->getAllMappings();
 $mimes_to_detect = [
     'indd' => ['image/x-indesign'],
