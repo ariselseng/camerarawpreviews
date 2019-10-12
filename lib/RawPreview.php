@@ -1,4 +1,5 @@
 <?php
+
 namespace OCA\CameraRawPreviews;
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -6,43 +7,38 @@ require __DIR__ . '/../vendor/autoload.php';
 use Intervention\Image\ImageManagerStatic as Image;
 use OCP\Files\File;
 use OCP\Files\FileInfo;
+use OCP\ILogger;
 use OCP\Image as OCP_Image;
-use OCP\Preview\IProvider2;
 use OCP\Preview\IProvider;
+use OCP\Preview\IProvider2;
 
 class RawPreviewBase
 {
     protected $converter;
     protected $driver = 'gd';
+    protected $logger;
+    protected $appName;
+    protected $perlFound = false;
 
-    public function __construct()
+    public function __construct(ILogger $logger, string $appName)
     {
+        $this->logger = $logger;
+        $this->appName = $appName;
+
         if (extension_loaded('imagick') && count(\Imagick::queryformats('JPEG')) > 0) {
             $this->driver = 'imagick';
         }
         Image::configure(array('driver' => $this->driver));
 
-        $perl_bin = \OC_Helper::findBinaryPath('perl');
-        if (empty($perl_bin)) {
-            $perl_bin = exec("command -v perl");
+        try {
+            $perlBin = $this->getPerlExecuteable();
+            $this->converter = $perlBin . ' ' . realpath(__DIR__ . '/../vendor/jmoati/exiftool-bin/exiftool');
+            $this->perlFound = true;
+        } catch (\Exception $e) {
+            $this->logger->logException($e, ['app' => $this->appName]);
         }
-        if (empty($perl_bin)) {
-            //fallback to static vendored perl
-            if (php_uname("s") === "Linux" && substr(php_uname("m"), 0, 3) === 'x86') {
-                $perl_bin = realpath(__DIR__ . '/../bin/staticperl');
-                if (!is_executable($perl_bin) && is_writable($perl_bin)) {
-                    chmod($perl_bin, 0744);
-                }
-            } else {
-                $perl_bin = "perl";
-            }
-        }
-
-        $this->converter = $perl_bin . ' ' . realpath(__DIR__ . '/../vendor/jmoati/exiftool-bin/exiftool');
     }
-    /**
-     * {@inheritDoc}
-     */
+
     public function getMimeType()
     {
         return '/^((image\/x-dcraw)|(image\/x-indesign))(;+.*)*$/';
@@ -61,8 +57,7 @@ class RawPreviewBase
             return 'PreviewImage';
         } else if (isset($previewData[0]['OtherImage'])) {
             return 'OtherImage';
-        }
-        else if (isset($previewData[0]['ThumbnailImage'])) {
+        } else if (isset($previewData[0]['ThumbnailImage'])) {
             return 'ThumbnailImage';
         } else if (isset($previewData[0]['PreviewTIFF'])) {
             if ($this->driver === 'imagick') {
@@ -79,6 +74,41 @@ class RawPreviewBase
         } else {
             throw new \Exception('Unable to find preview data');
         }
+    }
+
+    private function getPerlExecuteable()
+    {
+        $perlBin = \OC_Helper::findBinaryPath('perl');
+        if (!is_null($perlBin)) {
+            return $perlBin;
+        }
+
+        $perlBin = exec("command -v perl");
+        if (!empty($perlBin)) {
+            return $perlBin;
+        }
+
+        //fallback to static vendored perl
+        if (php_uname("s") === "Linux" && substr(php_uname("m"), 0, 3) === 'x86') {
+            $perlBin = realpath(__DIR__ . '/../bin/staticperl');
+            $fallback_is_executable = is_executable($perlBin);
+
+            if (!$fallback_is_executable && is_writable($perlBin)) {
+                $fallback_is_executable = chmod($perlBin, 0744);
+            }
+
+            if ($fallback_is_executable) {
+                $this->logger->warning('You do not have perl globally installed. Using a deprecated built in perl.', ['app' => $this->appName]);
+            } else {
+                $perlBin = null;
+            }
+        }
+
+        if (!empty($perlBin)) {
+            return $perlBin;
+        }
+
+        throw new \Exception('No perl executeable found. Camera Raw Previews app will not work.');
     }
 
     protected function getResizedPreview($tmpPath, $maxX, $maxY)
@@ -108,7 +138,7 @@ class RawPreviewBase
 
     public function isAvailable(FileInfo $file)
     {
-        return $file->getSize() > 0;
+        return $this->perlFound && $file->getSize() > 0;
     }
 }
 

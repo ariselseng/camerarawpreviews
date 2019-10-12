@@ -1,9 +1,9 @@
 {
-    "name": "cowai/camerarawpreviews",
+    "name": "ariselseng/camerarawpreviews",
     "type": "project",
     "require": {
         "jmoati/exiftool-bin": "^11.26",
-        "intervention/image": "^2.4.2"
+        "intervention/image": "^2.5.0"
     },
     "license": "agpl",
     "authors": [
