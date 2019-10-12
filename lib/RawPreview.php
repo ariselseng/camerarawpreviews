@@ -31,7 +31,7 @@ class RawPreviewBase
         Image::configure(array('driver' => $this->driver));
 
         try {
-            $perlBin = $this->getPerlExecuteable();
+            $perlBin = $this->getPerlExecutable();
             $this->converter = $perlBin . ' ' . realpath(__DIR__ . '/../vendor/jmoati/exiftool-bin/exiftool');
             $this->perlFound = true;
         } catch (\Exception $e) {
@@ -76,7 +76,7 @@ class RawPreviewBase
         }
     }
 
-    private function getPerlExecuteable()
+    private function getPerlExecutable()
     {
         $perlBin = \OC_Helper::findBinaryPath('perl');
         if (!is_null($perlBin)) {
