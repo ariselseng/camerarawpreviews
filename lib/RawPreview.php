@@ -108,7 +108,7 @@ class RawPreviewBase
             return $perlBin;
         }
 
-        throw new \Exception('No perl executeable found. Camera Raw Previews app will not work.');
+        throw new \Exception('No perl executable found. Camera Raw Previews app will not work.');
     }
 
     protected function getResizedPreview($tmpPath, $maxX, $maxY)
