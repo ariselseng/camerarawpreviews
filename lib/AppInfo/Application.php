@@ -21,6 +21,8 @@ class Application extends App
         $this->registerScripts();
         $container = $this->getContainer();
         $mimeTypeDetector = \OC::$server->getMimeTypeDetector();
+        $mimeTypeDetector->getAllMappings(); // is really needed
+
         $mimes_to_detect = [
             'indd' => ['image/x-indesign'],
             '3fr' => ['image/x-dcraw'],
