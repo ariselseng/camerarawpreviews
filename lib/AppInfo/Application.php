@@ -62,6 +62,7 @@ class Application extends App
             'srf' => ['image/x-dcraw'],
             'srw' => ['image/x-dcraw'],
             'tif' => ['image/x-dcraw'],
+            'tiff' => ['image/x-dcraw'],
             'x3f' => ['image/x-dcraw'],
         ];
         $mimeTypeDetector->registerTypeArray($mimesToDetect);
