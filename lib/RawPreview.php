@@ -19,6 +19,7 @@ class RawPreviewBase
     protected $logger;
     protected $appName;
     protected $perlFound = false;
+    protected $canHandleTiffSources = false;
 
     public function __construct(ILogger $logger, string $appName)
     {
@@ -27,6 +28,7 @@ class RawPreviewBase
 
         if (extension_loaded('imagick') && count(\Imagick::queryformats('JPEG')) > 0) {
             $this->driver = 'imagick';
+            $this->canHandleTiffSources = count(\Imagick::queryformats('TIFF')) > 0;
         }
         Image::configure(array('driver' => $this->driver));
 
@@ -46,8 +48,8 @@ class RawPreviewBase
 
     protected function getBestPreviewTag($tmpPath)
     {
-        //get all available previews
-        $previewData = json_decode(shell_exec($this->converter . " -json -preview:all " . escapeshellarg($tmpPath)), true);
+        // get all available previews and the file type
+        $previewData = json_decode(shell_exec($this->converter . " -json -preview:all -FileType " . escapeshellarg($tmpPath)), true);
 
         if (isset($previewData[0]['JpgFromRaw'])) {
             return 'JpgFromRaw';
@@ -60,17 +62,19 @@ class RawPreviewBase
         } else if (isset($previewData[0]['ThumbnailImage'])) {
             return 'ThumbnailImage';
         } else if (isset($previewData[0]['PreviewTIFF'])) {
-            if ($this->driver === 'imagick') {
+            if ($this->canHandleTiffSources) {
                 return 'PreviewTIFF';
             } else {
                 throw new \Exception('Needs imagick to extract TIFF previews');
             }
         } else if (isset($previewData[0]['ThumbnailTIFF'])) {
-            if ($this->driver === 'imagick') {
+            if ($this->canHandleTiffSources) {
                 return 'ThumbnailTIFF';
             } else {
                 throw new \Exception('Needs imagick to extract TIFF previews');
             }
+        } else if (isset($previewData[0]['FileType']) && $previewData[0]['FileType'] === 'TIFF' && $this->canHandleTiffSources) {
+            return 'SourceTIFF';
         } else {
             throw new \Exception('Unable to find preview data');
         }
@@ -118,13 +122,20 @@ class RawPreviewBase
         //tmp
         $previewImageTmpPath = dirname($tmpPath) . '/' . md5($tmpPath . uniqid()) . '.jpg';
 
-        //extract preview image using exiftool to file
-        shell_exec($this->converter . " -b -" . $previewTag . " " . escapeshellarg($tmpPath) . ' > ' . escapeshellarg($previewImageTmpPath));
-        if (filesize($previewImageTmpPath) < 100) {
-            throw new \Exception('Unable to extract valid preview data');
+        if ($previewTag === 'SourceTIFF') {
+            // load the original file as fallback when TIFF has no preview embedded
+            $previewImageTmpPath = $tmpPath;
+        } else {
+            //extract preview image using exiftool to file
+            shell_exec($this->converter . " -b -" . $previewTag . " " . escapeshellarg($tmpPath) . ' > ' . escapeshellarg($previewImageTmpPath));
+            if (filesize($previewImageTmpPath) < 100) {
+                unlink( $previewImageTmpPath );
+                throw new \Exception('Unable to extract valid preview data');
+            }
+
+            //update previewImageTmpPath with orientation data
+            shell_exec($this->converter . ' -TagsFromFile ' . escapeshellarg($tmpPath) . ' -orientation -overwrite_original ' . escapeshellarg($previewImageTmpPath));
         }
-        //update previewImageTmpPath with orientation data
-        shell_exec($this->converter . ' -TagsFromFile ' . escapeshellarg($tmpPath) . ' -orientation -overwrite_original ' . escapeshellarg($previewImageTmpPath));
 
         $im = Image::make($previewImageTmpPath);
         $im->orientate();
@@ -132,7 +143,9 @@ class RawPreviewBase
             $constraint->aspectRatio();
             $constraint->upsize();
         });
-        unlink($previewImageTmpPath);
+        if ($previewTag !== 'SourceTIFF') {
+            unlink( $previewImageTmpPath );
+        }
         return $im->encode('jpg', 90);
     }
 
