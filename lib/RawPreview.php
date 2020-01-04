@@ -19,7 +19,6 @@ class RawPreviewBase
     protected $logger;
     protected $appName;
     protected $perlFound = false;
-    protected $canHandleTiffSources = false;
 
     public function __construct(ILogger $logger, string $appName)
     {
@@ -28,7 +27,6 @@ class RawPreviewBase
 
         if (extension_loaded('imagick') && count(\Imagick::queryformats('JPEG')) > 0) {
             $this->driver = 'imagick';
-            $this->canHandleTiffSources = count(\Imagick::queryformats('TIFF')) > 0;
         }
         Image::configure(array('driver' => $this->driver));
 
@@ -50,34 +48,49 @@ class RawPreviewBase
     {
         // get all available previews and the file type
         $previewData = json_decode(shell_exec($this->converter . " -json -preview:all -FileType " . escapeshellarg($tmpPath)), true);
+        $fileType = $previewData[0]['FileType'] ?? 'n/a';
 
-        if (isset($previewData[0]['JpgFromRaw'])) {
-            return 'JpgFromRaw';
-        } else if (isset($previewData[0]['PageImage'])) {
-            return 'PageImage';
-        } else if (isset($previewData[0]['PreviewImage'])) {
-            return 'PreviewImage';
-        } else if (isset($previewData[0]['OtherImage'])) {
-            return 'OtherImage';
-        } else if (isset($previewData[0]['ThumbnailImage'])) {
-            return 'ThumbnailImage';
-        } else if (isset($previewData[0]['PreviewTIFF'])) {
-            if ($this->canHandleTiffSources) {
-                return 'PreviewTIFF';
-            } else {
-                throw new \Exception('Needs imagick to extract TIFF previews');
+        // potential tags in priority
+        $tagsToCheck = [
+            'JpgFromRaw',
+            'PageImage',
+            'PreviewImage',
+            'OtherImage',
+            'ThumbnailImage',
+        ];
+
+        // tiff tags that need extra checks
+        $tiffTagsToCheck = [
+            'PreviewTIFF',
+            'ThumbnailTIFF'
+        ];
+
+        // return at first found tag
+        foreach ($tagsToCheck as $tag) {
+            if (!isset($previewData[0][$tag])) {
+                continue;
             }
-        } else if (isset($previewData[0]['ThumbnailTIFF'])) {
-            if ($this->canHandleTiffSources) {
-                return 'ThumbnailTIFF';
-            } else {
-                throw new \Exception('Needs imagick to extract TIFF previews');
-            }
-        } else if (isset($previewData[0]['FileType']) && $previewData[0]['FileType'] === 'TIFF' && $this->canHandleTiffSources) {
-            return 'SourceTIFF';
-        } else {
-            throw new \Exception('Unable to find preview data');
+            return $tag;
         }
+
+        // we know we can handle TIFF files directly
+        if ($fileType === 'TIFF' && $this->driver === 'imagick' && count(\Imagick::queryFormats($fileType)) > 0) {
+            return 'SourceTIFF';
+        }
+
+        // extra logic for tiff previews
+        $tiffTag = null;
+        foreach ($tiffTagsToCheck as $tag) {
+            if (!isset($previewData[0][$tag])) {
+                continue;
+            }
+            if ($this->driver !== 'imagick' || count(\Imagick::queryFormats('TIFF')) === 0) {
+                throw new \Exception('Needs imagick to extract TIFF previews');
+            }
+            return $tag;
+        }
+
+        throw new \Exception('Unable to find preview data');
     }
 
     private function getPerlExecutable()
@@ -129,7 +142,7 @@ class RawPreviewBase
             //extract preview image using exiftool to file
             shell_exec($this->converter . " -b -" . $previewTag . " " . escapeshellarg($tmpPath) . ' > ' . escapeshellarg($previewImageTmpPath));
             if (filesize($previewImageTmpPath) < 100) {
-                unlink( $previewImageTmpPath );
+                unlink($previewImageTmpPath);
                 throw new \Exception('Unable to extract valid preview data');
             }
 
@@ -144,7 +157,7 @@ class RawPreviewBase
             $constraint->upsize();
         });
         if ($previewTag !== 'SourceTIFF') {
-            unlink( $previewImageTmpPath );
+            unlink($previewImageTmpPath);
         }
         return $im->encode('jpg', 90);
     }
