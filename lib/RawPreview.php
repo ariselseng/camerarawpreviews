@@ -105,22 +105,6 @@ class RawPreviewBase
             return $perlBin;
         }
 
-        //fallback to static vendored perl
-        if (php_uname("s") === "Linux" && substr(php_uname("m"), 0, 3) === 'x86') {
-            $perlBin = realpath(__DIR__ . '/../bin/staticperl');
-            $fallback_is_executable = is_executable($perlBin);
-
-            if (!$fallback_is_executable && is_writable($perlBin)) {
-                $fallback_is_executable = chmod($perlBin, 0744);
-            }
-
-            if ($fallback_is_executable) {
-                $this->logger->warning('You do not have perl globally installed. Using a deprecated built in perl.', ['app' => $this->appName]);
-            } else {
-                $perlBin = null;
-            }
-        }
-
         if (!empty($perlBin)) {
             return $perlBin;
         }
