@@ -9,7 +9,7 @@ This app also gives you preview of Adobe Indesign files (.INDD).
 * Probably **memory_limit** quite high.
 * **imagick** or **gd** module. If imagick is available, it will use that for performance.
 * For files with a TIFF preview (at least some DNG files), **imagick** is required
-* Perl installed. A deprecated fallback is used now that will be removed in a future version.
+* Perl installed. ~~A deprecated fallback is used now that will be removed in a future version.~~
 
 ## Installation
 Install in Nextcloud App store.
