@@ -4,8 +4,19 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "19cf9afd643d9864727633832a635927",
+    "content-hash": "a995137d0c216053ccc253026b1c711a",
     "packages": [
+        {
+            "name": "exiftool/exiftool",
+            "version": "master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/exiftool/exiftool.git",
+                "reference": "3d8a19238300c21f48ee8bc82b79b101fb3a67b8"
+            },
+            "type": "library",
+            "time": "2020-06-24T15:38:46+00:00"
+        },
         {
             "name": "guzzlehttp/psr7",
             "version": "1.6.1",
@@ -148,33 +159,6 @@
             "time": "2019-11-02T09:15:47+00:00"
         },
         {
-            "name": "jmoati/exiftool-bin",
-            "version": "11.26",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/Jmoati/exiftool-bin.git",
-                "reference": "b957552a65b27fe79e8d5ed50392e0ad9b9601f1"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/Jmoati/exiftool-bin/zipball/b957552a65b27fe79e8d5ed50392e0ad9b9601f1",
-                "reference": "b957552a65b27fe79e8d5ed50392e0ad9b9601f1",
-                "shasum": ""
-            },
-            "type": "library",
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Jacques Moati",
-                    "email": "jacques@moati.net"
-                }
-            ],
-            "time": "2019-02-10T08:54:44+00:00"
-        },
-        {
             "name": "psr/http-message",
             "version": "1.0.1",
             "source": {
@@ -267,10 +251,11 @@
     ],
     "packages-dev": [],
     "aliases": [],
-    "minimum-stability": "stable",
+    "minimum-stability": "dev",
     "stability-flags": [],
-    "prefer-stable": false,
+    "prefer-stable": true,
     "prefer-lowest": false,
     "platform": [],
-    "platform-dev": []
+    "platform-dev": [],
+    "plugin-api-version": "1.1.0"
 }

@@ -32,7 +32,7 @@ class RawPreviewBase
 
         try {
             $perlBin = $this->getPerlExecutable();
-            $this->converter = $perlBin . ' ' . realpath(__DIR__ . '/../vendor/jmoati/exiftool-bin/exiftool');
+            $this->converter = $perlBin . ' ' . realpath(__DIR__ . '/../vendor/exiftool/exiftool/exiftool');
             $this->perlFound = true;
         } catch (\Exception $e) {
             $this->logger->logException($e, ['app' => $this->appName]);

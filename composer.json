@@ -2,7 +2,7 @@
     "name": "ariselseng/camerarawpreviews",
     "type": "project",
     "require": {
-        "jmoati/exiftool-bin": "^11.26",
+        "exiftool/exiftool": "master",
         "intervention/image": "^2.5.1"
     },
     "license": "agpl",
@@ -12,5 +12,20 @@
             "email": "ari@selseng.net"
         }
     ],
-    "minimum-stability": "stable"
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "repositories": [
+        {
+            "type":"package",
+            "package": {
+              "name": "exiftool/exiftool",
+              "version":"master",
+              "source": {
+                  "url": "https://github.com/exiftool/exiftool.git",
+                  "type": "git",
+                  "reference":"3d8a19238300c21f48ee8bc82b79b101fb3a67b8"
+                }
+            }
+        }
+    ]
 }
