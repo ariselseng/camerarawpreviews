@@ -4,6 +4,7 @@ namespace OCA\CameraRawPreviews;
 
 require __DIR__ . '/../vendor/autoload.php';
 
+use Exception;
 use Intervention\Image\ImageManagerStatic as Image;
 use OCP\Files\File;
 use OCP\Files\FileInfo;
@@ -34,16 +35,24 @@ class RawPreviewBase
             $perlBin = $this->getPerlExecutable();
             $this->converter = $perlBin . ' ' . realpath(__DIR__ . '/../vendor/exiftool/exiftool/exiftool');
             $this->perlFound = true;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $this->logger->logException($e, ['app' => $this->appName]);
         }
     }
 
+    /**
+     * @return string
+     */
     public function getMimeType()
     {
         return '/^((image\/x-dcraw)|(image\/x-indesign))(;+.*)*$/';
     }
 
+    /**
+     * @param $tmpPath
+     * @return string
+     * @throws Exception
+     */
     protected function getBestPreviewTag($tmpPath)
     {
         // get all available previews and the file type
@@ -85,14 +94,18 @@ class RawPreviewBase
                 continue;
             }
             if ($this->driver !== 'imagick' || count(\Imagick::queryFormats('TIFF')) === 0) {
-                throw new \Exception('Needs imagick to extract TIFF previews');
+                throw new Exception('Needs imagick to extract TIFF previews');
             }
             return $tag;
         }
 
-        throw new \Exception('Unable to find preview data');
+        throw new Exception('Unable to find preview data');
     }
 
+    /**
+     * @return string
+     * @throws Exception
+     */
     private function getPerlExecutable()
     {
         $perlBin = \OC_Helper::findBinaryPath('perl');
@@ -109,9 +122,16 @@ class RawPreviewBase
             return $perlBin;
         }
 
-        throw new \Exception('No perl executable found. Camera Raw Previews app will not work.');
+        throw new Exception('No perl executable found. Camera Raw Previews app will not work.');
     }
 
+    /**
+     * @param $tmpPath
+     * @param $maxX
+     * @param $maxY
+     * @return \Intervention\Image\Image
+     * @throws Exception
+     */
     protected function getResizedPreview($tmpPath, $maxX, $maxY)
     {
         $previewTag = $this->getBestPreviewTag($tmpPath);
@@ -127,7 +147,7 @@ class RawPreviewBase
             shell_exec($this->converter . " -b -" . $previewTag . " " . escapeshellarg($tmpPath) . ' > ' . escapeshellarg($previewImageTmpPath));
             if (filesize($previewImageTmpPath) < 100) {
                 unlink($previewImageTmpPath);
-                throw new \Exception('Unable to extract valid preview data');
+                throw new Exception('Unable to extract valid preview data');
             }
 
             //update previewImageTmpPath with orientation data
@@ -146,6 +166,10 @@ class RawPreviewBase
         return $im->encode('jpg', 90);
     }
 
+    /**
+     * @param FileInfo $file
+     * @return bool
+     */
     public function isAvailable(FileInfo $file)
     {
         return $this->perlFound && $file->getSize() > 0;
@@ -174,7 +198,7 @@ if (interface_exists('\OCP\Preview\IProvider2')) {
 
             try {
                 $im = $this::getResizedPreview($tmpPath, $maxX, $maxY);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 return false;
             } finally {
                 fclose($tmp_resource);
@@ -201,7 +225,7 @@ if (interface_exists('\OCP\Preview\IProvider2')) {
 
             try {
                 $im = $this->getResizedPreview($tmpPath, $maxX, $maxY);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 return false;
             } finally {
                 unlink($tmpPath);
