@@ -8,10 +8,14 @@ use Exception;
 use Intervention\Image\ImageManagerStatic as Image;
 use OCP\Files\File;
 use OCP\Files\FileInfo;
+use OCP\Files\NotFoundException;
+use OCP\Files\NotPermittedException;
+use OCP\IImage;
 use OCP\ILogger;
 use OCP\Image as OCP_Image;
-use OCP\Preview\IProvider;
+use OCP\Lock\LockedException;
 use OCP\Preview\IProvider2;
+use OCP\Preview\IProviderV2;
 
 class RawPreviewBase
 {
@@ -20,6 +24,7 @@ class RawPreviewBase
     protected $logger;
     protected $appName;
     protected $perlFound = false;
+    protected $tmpFiles = [];
 
     public function __construct(ILogger $logger, string $appName)
     {
@@ -98,8 +103,7 @@ class RawPreviewBase
             }
             return $tag;
         }
-
-        throw new Exception('Unable to find preview data');
+        throw new Exception('Unable to find preview data: debug ' . json_encode($previewData));
     }
 
     /**
@@ -126,32 +130,30 @@ class RawPreviewBase
     }
 
     /**
-     * @param $tmpPath
+     * @param $localPath
      * @param $maxX
      * @param $maxY
      * @return \Intervention\Image\Image
      * @throws Exception
      */
-    protected function getResizedPreview($tmpPath, $maxX, $maxY)
+    protected function getResizedPreview($localPath, $maxX, $maxY)
     {
-        $previewTag = $this->getBestPreviewTag($tmpPath);
-
-        //tmp
-        $previewImageTmpPath = dirname($tmpPath) . '/' . md5($tmpPath . uniqid()) . '.jpg';
+        $previewTag = $this->getBestPreviewTag($localPath);
+        $previewImageTmpPath = sys_get_temp_dir() . '/' . md5($localPath . uniqid()) . '.jpg';
 
         if ($previewTag === 'SourceTIFF') {
             // load the original file as fallback when TIFF has no preview embedded
-            $previewImageTmpPath = $tmpPath;
+            $previewImageTmpPath = $localPath;
         } else {
             //extract preview image using exiftool to file
-            shell_exec($this->converter . " -b -" . $previewTag . " " . escapeshellarg($tmpPath) . ' > ' . escapeshellarg($previewImageTmpPath));
+            shell_exec($this->converter . " -b -" . $previewTag . " " . escapeshellarg($localPath) . ' > ' . escapeshellarg($previewImageTmpPath));
             if (filesize($previewImageTmpPath) < 100) {
                 unlink($previewImageTmpPath);
                 throw new Exception('Unable to extract valid preview data');
             }
 
             //update previewImageTmpPath with orientation data
-            shell_exec($this->converter . ' -TagsFromFile ' . escapeshellarg($tmpPath) . ' -orientation -overwrite_original ' . escapeshellarg($previewImageTmpPath));
+            shell_exec($this->converter . ' -TagsFromFile ' . escapeshellarg($localPath) . ' -orientation -overwrite_original ' . escapeshellarg($previewImageTmpPath));
         }
 
         $im = Image::make($previewImageTmpPath);
@@ -174,6 +176,75 @@ class RawPreviewBase
     {
         return $this->perlFound && $file->getSize() > 0;
     }
+
+    protected function getThumbnailInternal(File $file, int $maxX, int $maxY): ?IImage
+    {
+        try {
+            $tmpPath = $this->getLocalFile($file);
+        } catch (Exception $e) {
+            $this->logger->logException($e, ['app' => $this->appName]);
+            return null;
+        }
+
+        try {
+            $preview = $this->getResizedPreview($tmpPath, $maxX, $maxY);
+            $image = new OCP_Image();
+            $image->loadFromData($preview);
+            $this->cleanTmpFiles();
+
+            //check if image object is valid
+            if (!$image->valid()) {
+                return null;
+            }
+            return $image;
+        } catch (Exception $e) {
+            $this->logger->logException($e, ['app' => $this->appName]);
+            $this->cleanTmpFiles();
+            return null;
+        }
+    }
+
+    /**
+     * Get a path to either the local file or temporary file
+     *
+     * @param File $file
+     * @param int $maxSize maximum size for temporary files
+     * @return string
+     * @throws LockedException
+     * @throws NotPermittedException
+     * @throws NotFoundException
+     */
+    protected function getLocalFile(File $file, int $maxSize = null): string
+    {
+        $useTempFile = $file->isEncrypted() || !$file->getStorage()->isLocal();
+        if ($useTempFile) {
+            $absPath = \OC::$server->getTempManager()->getTemporaryFile();
+
+            $content = $file->fopen('r');
+
+            if ($maxSize) {
+                $content = stream_get_contents($content, $maxSize);
+            }
+
+            file_put_contents($absPath, $content);
+            $this->tmpFiles[] = $absPath;
+            return $absPath;
+        } else {
+            return $file->getStorage()->getLocalFile($file->getInternalPath());
+        }
+    }
+
+    /**
+     * Clean any generated temporary files
+     */
+    protected function cleanTmpFiles()
+    {
+        foreach ($this->tmpFiles as $tmpFile) {
+            unlink($tmpFile);
+        }
+
+        $this->tmpFiles = [];
+    }
 }
 
 if (interface_exists('\OCP\Preview\IProvider2')) {
@@ -184,57 +255,25 @@ if (interface_exists('\OCP\Preview\IProvider2')) {
          */
         public function getThumbnail(File $file, $maxX, $maxY, $scalingUp)
         {
-            $file_resource = $file->fopen('r');
-            if (!is_resource($file_resource)) {
-                return false;
-            }
-            $tmp_resource = tmpfile();
-            if (!is_resource($tmp_resource)) {
-                return false;
-            }
-            stream_copy_to_stream($file_resource, $tmp_resource);
-            fclose($file_resource);
-            $tmpPath = stream_get_meta_data($tmp_resource)['uri'];
-
-            try {
-                $im = $this::getResizedPreview($tmpPath, $maxX, $maxY);
-            } catch (Exception $e) {
-                return false;
-            } finally {
-                fclose($tmp_resource);
-            }
-            $image = new OCP_Image();
-            $image->loadFromData($im);
-
-            // //check if image object is valid
-            return $image->valid() ? $image : false;
+            return $this->getThumbnailInternal($file, $maxX, $maxY) ?? false;
         }
     }
 } else {
-    class RawPreview extends RawPreviewBase implements IProvider
+    class RawPreview extends RawPreviewBase implements IProviderV2
     {
-        /**
-         * {@inheritDoc}
-         */
-        public function getThumbnail($path, $maxX, $maxY, $scalingup, $fileview)
+        public function getMimeType(): string
         {
-            $tmpPath = $fileview->toTmpFile($path);
-            if (!$tmpPath) {
-                return false;
-            }
+            return parent::getMimeType();
+        }
 
-            try {
-                $im = $this->getResizedPreview($tmpPath, $maxX, $maxY);
-            } catch (Exception $e) {
-                return false;
-            } finally {
-                unlink($tmpPath);
-            }
-            $image = new OCP_Image();
-            $image->loadFromData($im);
+        public function isAvailable(FileInfo $file): bool
+        {
+            return parent::isAvailable($file);
+        }
 
-            // //check if image object is valid
-            return $image->valid() ? $image : false;
+        public function getThumbnail($file, int $maxX, int $maxY): ?IImage
+        {
+            return $this->getThumbnailInternal($file, $maxX, $maxY);
         }
     }
 }
