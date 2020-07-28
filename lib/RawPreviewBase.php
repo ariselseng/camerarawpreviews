@@ -14,8 +14,6 @@ use OCP\IImage;
 use OCP\ILogger;
 use OCP\Image as OCP_Image;
 use OCP\Lock\LockedException;
-use OCP\Preview\IProvider2;
-use OCP\Preview\IProviderV2;
 
 class RawPreviewBase
 {
@@ -243,36 +241,5 @@ class RawPreviewBase
         }
 
         $this->tmpFiles = [];
-    }
-}
-
-if (interface_exists('\OCP\Preview\IProvider2')) {
-    class RawPreview extends RawPreviewBase implements IProvider2
-    {
-        /**
-         * {@inheritDoc}
-         */
-        public function getThumbnail(File $file, $maxX, $maxY, $scalingUp)
-        {
-            return $this->getThumbnailInternal($file, $maxX, $maxY) ?? false;
-        }
-    }
-} else {
-    class RawPreview extends RawPreviewBase implements IProviderV2
-    {
-        public function getMimeType(): string
-        {
-            return parent::getMimeType();
-        }
-
-        public function isAvailable(FileInfo $file): bool
-        {
-            return parent::isAvailable($file);
-        }
-
-        public function getThumbnail($file, int $maxX, int $maxY): ?IImage
-        {
-            return $this->getThumbnailInternal($file, $maxX, $maxY);
-        }
     }
 }

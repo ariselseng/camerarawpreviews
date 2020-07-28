@@ -2,7 +2,8 @@
 
 namespace OCA\CameraRawPreviews\AppInfo;
 
-use OCA\CameraRawPreviews\RawPreview;
+use OCA\CameraRawPreviews\RawPreviewIProvider2;
+use OCA\CameraRawPreviews\RawPreviewIProviderV2;
 use OCP\AppFramework\App;
 
 class Application extends App
@@ -68,7 +69,10 @@ class Application extends App
         $mimeTypeDetector->registerTypeArray($mimesToDetect);
 
         $previewManager->registerProvider('/^((image\/x-dcraw)|(image\/x-indesign))(;+.*)*$/', function () use ($logger, $appName) {
-            return new RawPreview($logger, $appName);
+            if (interface_exists('\OCP\Preview\IProvider2')) {
+                return new RawPreviewIProvider2($logger, $appName);
+            }
+            return new RawPreviewIProviderV2($logger, $appName);
         });
     }
 
