@@ -145,10 +145,11 @@ class RawPreviewBase
             // load the original file as fallback when TIFF has no preview embedded
             $previewImageTmpPath = $localPath;
         } else {
+            $this->tmpFiles[] = $previewImageTmpPath;
+
             //extract preview image using exiftool to file
             shell_exec($this->converter . " -b -" . $previewTag . " " . escapeshellarg($localPath) . ' > ' . escapeshellarg($previewImageTmpPath));
             if (filesize($previewImageTmpPath) < 100) {
-                unlink($previewImageTmpPath);
                 throw new Exception('Unable to extract valid preview data');
             }
 
@@ -162,9 +163,7 @@ class RawPreviewBase
             $constraint->aspectRatio();
             $constraint->upsize();
         });
-        if ($previewTag !== 'SourceTIFF') {
-            unlink($previewImageTmpPath);
-        }
+
         return $im->encode('jpg', 90);
     }
 
