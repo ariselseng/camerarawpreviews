@@ -140,9 +140,9 @@ appstore:
 	--exclude=".*" \
 	--exclude="sign-*.sh"
 	
-	docker run --user 1000 --rm -v $(appstore_build_directory)/$(app_name):/$(app_name) -v ~/.owncloud/certificates:/certs owncloud/server:10.0 php occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
+	docker run --user 1000 --rm -v $(appstore_build_directory)/$(app_name):/$(app_name) -v ~/.owncloud/certificates:/certs owncloud/server:10.0.9 php occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
 	tar -czlf build/$(app_name)_owncloud.tar.gz -C "$(appstore_build_directory)" $(app_name)
 	rm "$(appstore_build_directory)"/$(app_name)/appinfo/signature.json
-	docker run --rm -v $(appstore_build_directory)/$(app_name):/$(app_name) -v ~/.nextcloud/certificates:/certs nextcloud:14-apache php /usr/src/nextcloud/occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
+	docker run --rm -v $(appstore_build_directory)/$(app_name):/$(app_name) -v ~/.nextcloud/certificates:/certs nextcloud:17-apache php /usr/src/nextcloud/occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
 	tar -czf build/$(app_name)_nextcloud.tar.gz -C "$(appstore_build_directory)" $(app_name)
 	
