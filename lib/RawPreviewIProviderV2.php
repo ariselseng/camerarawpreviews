@@ -2,6 +2,7 @@
 
 namespace OCA\CameraRawPreviews;
 
+use OCP\Files\File;
 use OCP\Files\FileInfo;
 use OCP\IImage;
 use OCP\Preview\IProviderV2;
@@ -19,7 +20,7 @@ class RawPreviewIProviderV2 extends RawPreviewBase implements IProviderV2
         return parent::isAvailable($file);
     }
 
-    public function getThumbnail($file, int $maxX, int $maxY): ?IImage
+    public function getThumbnail(File $file, int $maxX, int $maxY): ?IImage
     {
         return $this->getThumbnailInternal($file, $maxX, $maxY);
     }
