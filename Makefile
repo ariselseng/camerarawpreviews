@@ -145,4 +145,8 @@ appstore:
 	rm "$(appstore_build_directory)"/$(app_name)/appinfo/signature.json
 	docker run --rm -v $(appstore_build_directory)/$(app_name):/$(app_name) -v ~/.nextcloud/certificates:/certs nextcloud:17-apache php /usr/src/nextcloud/occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
 	tar -czf build/$(app_name)_nextcloud.tar.gz -C "$(appstore_build_directory)" $(app_name)
-	
+
+# Builds the source package for the app store, ignores php and js tests
+.PHONY: tests
+tests:
+	docker-compose exec --user=docker php phpunit --stop-on-failure -v --bootstrap apps2/camerarawpreviews/tests/bootstrap.php apps2/camerarawpreviews/tests/
