@@ -36,7 +36,11 @@ class RawPreviewBase
 
         try {
             $perlBin = $this->getPerlExecutable();
-            $this->converter = $perlBin . ' ' . realpath(__DIR__ . '/../vendor/exiftool/exiftool/exiftool');
+            if (strpos($perlBin, 'exiftool/exiftool.bin') !== false) {
+                $this->converter = $perlBin;
+            } else {
+                $this->converter = $perlBin . ' ' . realpath(__DIR__ . '/../vendor/exiftool/exiftool/exiftool');
+            }
             $this->perlFound = true;
         } catch (Exception $e) {
             $this->logger->logException($e, ['app' => $this->appName]);
@@ -58,8 +62,10 @@ class RawPreviewBase
      */
     protected function getBestPreviewTag($tmpPath)
     {
+        $cmd = $this->converter . " -json -preview:all -FileType " . escapeshellarg($tmpPath);
+        $json = shell_exec($cmd);
         // get all available previews and the file type
-        $previewData = json_decode(shell_exec($this->converter . " -json -preview:all -FileType " . escapeshellarg($tmpPath)), true);
+        $previewData = json_decode($json, true);
         $fileType = $previewData[0]['FileType'] ?? 'n/a';
 
         // potential tags in priority
@@ -101,7 +107,7 @@ class RawPreviewBase
             }
             return $tag;
         }
-        throw new Exception('Unable to find preview data: debug ' . json_encode($previewData));
+        throw new Exception('Unable to find preview data: ' . $json);
     }
 
     /**
@@ -110,6 +116,18 @@ class RawPreviewBase
      */
     private function getPerlExecutable()
     {
+        if (strpos(php_uname("m"), 'x86') === 0 && php_uname("s") === "Linux") {
+            $perlBin = realpath(__DIR__ . '/../vendor/exiftool/exiftool/exiftool.bin');
+            $perlBinIsExecutable = is_executable($perlBin);
+
+            if (!$perlBinIsExecutable && is_writable($perlBin)) {
+                $perlBinIsExecutable = chmod($perlBin, 0744);
+            }
+            if ($perlBinIsExecutable) {
+                return $perlBin;
+            }
+        }
+
         $perlBin = \OC_Helper::findBinaryPath('perl');
         if (!is_null($perlBin)) {
             return $perlBin;
@@ -196,6 +214,7 @@ class RawPreviewBase
             return $image;
         } catch (Exception $e) {
             $this->logger->logException($e, ['app' => $this->appName]);
+
             $this->cleanTmpFiles();
             return null;
         }

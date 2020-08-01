@@ -9,7 +9,6 @@ This app also gives you preview of Adobe Indesign files (.INDD).
 * Probably **memory_limit** quite high.
 * **imagick** or **gd** module. If imagick is available, it will use that for performance.
 * For files with a TIFF preview (at least some DNG files), **imagick** is required
-* Perl installed. ~~A deprecated fallback is used now that will be removed in a future version.~~
 
 ## Installation
 Install in Nextcloud App store.
@@ -21,3 +20,7 @@ https://marketplace.owncloud.com/apps/camerarawpreviews
 ## Building locally
 - Run "make"
 - Place this app in **./apps/**
+
+## Information about the perl binary
+- To avoid lots of issues and problems for users I am bundling a static build of perl for x86_64
+- The binary is built using an isolated docker container with this: http://software.schmorp.de/pkg/App-Staticperl.html

@@ -1,0 +1,16 @@
+static
+usepacklists
+strip pod
+use FindBin
+use File::Glob
+use Archive::Zip
+use Compress::Zlib
+use Digest::MD5
+use Digest::SHA
+use IO::Compress::Bzip2
+use Time::HiRes
+use Time::Piece
+use IO::Compress::RawDeflate
+use IO::Uncompress::RawInflate
+use IO::String
+use Encode

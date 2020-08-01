@@ -41,11 +41,11 @@
 
 app_name=$(notdir $(CURDIR))
 build_tools_directory=$(CURDIR)/build/tools
+vendor_directory=$(CURDIR)/vendor
 source_build_directory=$(CURDIR)/build/artifacts/source
 source_package_name=$(source_build_directory)/$(app_name)
 appstore_build_directory=$(CURDIR)/build/artifacts/appstore
 appstore_package_name=$(appstore_build_directory)/$(app_name)
-npm=$(shell which npm 2> /dev/null)
 composer=$(shell which composer 2> /dev/null)
 
 all: build
@@ -59,9 +59,6 @@ ifneq (,$(wildcard $(CURDIR)/composer.json))
 	make composer
 endif
 ifneq (,$(wildcard $(CURDIR)/package.json))
-	make npm
-endif
-ifneq (,$(wildcard $(CURDIR)/js/package.json))
 	make npm
 endif
 
@@ -81,34 +78,24 @@ else
 	composer update --prefer-dist
 endif
 
-# Installs npm dependencies
-.PHONY: npm
-npm:
-ifeq (,$(wildcard $(CURDIR)/package.json))
-	cd js && $(npm) run build
-else
-	npm run build
-endif
-
 # Removes the appstore build
 .PHONY: clean
 clean:
-	rm -rf ./build
-
-# Same as clean but also removes dependencies installed by composer, bower and
-# npm
-.PHONY: distclean
-distclean: clean
-	rm -rf vendor
-	rm -rf node_modules
-	rm -rf js/vendor
-	rm -rf js/node_modules
+	rm -rf ./build/artifacts
+	rm -rf ./build/camerarawpreviews*tar.gz
 
 # Builds the source and appstore package
 .PHONY: dist
 dist:
-	make source
+	composer install --prefer-dist
+	test -s $vendor_directory/exiftool/exiftool/exiftool.bin || make perl
+	make tests
 	make appstore
+
+# Builds the source package
+.PHONY: perl
+perl:
+	$(build_tools_directory)/perl-build/build.sh
 
 # Builds the source package
 .PHONY: source
