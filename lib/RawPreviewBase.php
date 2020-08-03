@@ -57,7 +57,7 @@ class RawPreviewBase
 
     /**
      * @param $tmpPath
-     * @return string
+     * @return array
      * @throws Exception
      */
     protected function getBestPreviewTag($tmpPath)
@@ -88,12 +88,12 @@ class RawPreviewBase
             if (!isset($previewData[0][$tag])) {
                 continue;
             }
-            return $tag;
+            return ['tag' => $tag, 'ext' => 'jpg'];
         }
 
         // we know we can handle TIFF files directly
         if ($fileType === 'TIFF' && $this->driver === 'imagick' && count(\Imagick::queryFormats($fileType)) > 0) {
-            return 'SourceTIFF';
+            return ['tag' => 'SourceTIFF', 'ext' => 'tiff'];
         }
 
         // extra logic for tiff previews
@@ -105,7 +105,7 @@ class RawPreviewBase
             if ($this->driver !== 'imagick' || count(\Imagick::queryFormats('TIFF')) === 0) {
                 throw new Exception('Needs imagick to extract TIFF previews');
             }
-            return $tag;
+            return ['tag' => $tag, 'ext' => 'tiff'];
         }
         throw new Exception('Unable to find preview data: ' . $json);
     }
@@ -154,8 +154,10 @@ class RawPreviewBase
      */
     protected function getResizedPreview($localPath, $maxX, $maxY)
     {
-        $previewTag = $this->getBestPreviewTag($localPath);
-        $previewImageTmpPath = sys_get_temp_dir() . '/' . md5($localPath . uniqid()) . '.jpg';
+        $tagData = $this->getBestPreviewTag($localPath);
+        $previewTag = $tagData['tag'];
+        $previewImageTmpPath = sys_get_temp_dir() . '/' . md5($localPath . uniqid()) . '.' . $tagData['ext'];
+
 
         if ($previewTag === 'SourceTIFF') {
             // load the original file as fallback when TIFF has no preview embedded
