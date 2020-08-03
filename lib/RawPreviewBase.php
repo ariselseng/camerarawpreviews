@@ -17,8 +17,10 @@ use OCP\Lock\LockedException;
 
 class RawPreviewBase
 {
+    const DRIVER_IMAGICK = 'imagick';
+    const DRIVER_GD = 'gd';
     protected $converter;
-    protected $driver = 'gd';
+    protected $driver;
     protected $logger;
     protected $appName;
     protected $perlFound = false;
@@ -28,11 +30,6 @@ class RawPreviewBase
     {
         $this->logger = $logger;
         $this->appName = $appName;
-
-        if (extension_loaded('imagick') && count(\Imagick::queryformats('JPEG')) > 0) {
-            $this->driver = 'imagick';
-        }
-        Image::configure(array('driver' => $this->driver));
 
         try {
             $perlBin = $this->getPerlExecutable();
@@ -92,7 +89,7 @@ class RawPreviewBase
         }
 
         // we know we can handle TIFF files directly
-        if ($fileType === 'TIFF' && $this->driver === 'imagick' && count(\Imagick::queryFormats($fileType)) > 0) {
+        if ($fileType === 'TIFF' && $this->getDriver() === self::DRIVER_IMAGICK && count(\Imagick::queryFormats($fileType)) > 0) {
             return ['tag' => 'SourceTIFF', 'ext' => 'tiff'];
         }
 
@@ -102,12 +99,29 @@ class RawPreviewBase
             if (!isset($previewData[0][$tag])) {
                 continue;
             }
-            if ($this->driver !== 'imagick' || count(\Imagick::queryFormats('TIFF')) === 0) {
+            if ($this->getDriver() !== self::DRIVER_IMAGICK || count(\Imagick::queryFormats('TIFF')) === 0) {
                 throw new Exception('Needs imagick to extract TIFF previews');
             }
             return ['tag' => $tag, 'ext' => 'tiff'];
         }
         throw new Exception('Unable to find preview data: ' . $json);
+    }
+
+    /**
+     * @return string
+     */
+    private function getDriver(): string
+    {
+        if (!is_null($this->driver)) {
+            return $this->driver;
+        }
+
+        if (extension_loaded(self::DRIVER_IMAGICK) && count(\Imagick::queryformats('JPEG')) > 0) {
+            $this->driver = self::DRIVER_IMAGICK;
+        } else {
+            $this->driver = self::DRIVER_GD;
+        }
+        return $this->driver;
     }
 
     /**
@@ -175,6 +189,7 @@ class RawPreviewBase
             shell_exec($this->converter . ' -TagsFromFile ' . escapeshellarg($localPath) . ' -orientation -overwrite_original ' . escapeshellarg($previewImageTmpPath));
         }
 
+        Image::configure(['driver' => $this->getDriver()]);
         $im = Image::make($previewImageTmpPath);
         $im->orientate();
         $im->resize($maxX, $maxY, function ($constraint) {
