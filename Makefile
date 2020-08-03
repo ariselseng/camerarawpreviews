@@ -88,7 +88,6 @@ clean:
 .PHONY: dist
 dist:
 	composer install --prefer-dist
-	test -s $vendor_directory/exiftool/exiftool/exiftool.bin || make perl
 	make tests
 	make appstore
 
@@ -113,6 +112,7 @@ source:
 # Builds the source package for the app store, ignores php and js tests
 .PHONY: appstore
 appstore:
+	test -s $(vendor_directory)/exiftool/exiftool/exiftool.bin
 	rm -rf $(appstore_build_directory)
 	mkdir -p $(appstore_build_directory)
 	rsync -r ../$(app_name)/ $(appstore_build_directory)/$(app_name) \
@@ -136,4 +136,5 @@ appstore:
 # Builds the source package for the app store, ignores php and js tests
 .PHONY: tests
 tests:
+	test -s $vendor_directory/exiftool/exiftool/exiftool.bin
 	docker-compose exec --user=docker php phpunit --stop-on-failure -v --bootstrap apps2/camerarawpreviews/tests/bootstrap.php apps2/camerarawpreviews/tests/
