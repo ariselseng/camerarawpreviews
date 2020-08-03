@@ -1,6 +1,6 @@
 static
 usepacklists
-strip pod
+strip ppi
 use FindBin
 use File::Glob
 use Archive::Zip
