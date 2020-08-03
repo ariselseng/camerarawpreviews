@@ -30,18 +30,6 @@ class RawPreviewBase
     {
         $this->logger = $logger;
         $this->appName = $appName;
-
-        try {
-            $perlBin = $this->getPerlExecutable();
-            if (strpos($perlBin, 'exiftool/exiftool.bin') !== false) {
-                $this->converter = $perlBin;
-            } else {
-                $this->converter = $perlBin . ' ' . realpath(__DIR__ . '/../vendor/exiftool/exiftool/exiftool');
-            }
-            $this->perlFound = true;
-        } catch (Exception $e) {
-            $this->logger->logException($e, ['app' => $this->appName]);
-        }
     }
 
     /**
@@ -59,7 +47,8 @@ class RawPreviewBase
      */
     protected function getBestPreviewTag($tmpPath)
     {
-        $cmd = $this->converter . " -json -preview:all -FileType " . escapeshellarg($tmpPath);
+
+        $cmd = $this->getConverter() . " -json -preview:all -FileType " . escapeshellarg($tmpPath);
         $json = shell_exec($cmd);
         // get all available previews and the file type
         $previewData = json_decode($json, true);
@@ -128,32 +117,40 @@ class RawPreviewBase
      * @return string
      * @throws Exception
      */
-    private function getPerlExecutable()
+    private function getConverter()
     {
+        if (!is_null($this->converter)) {
+            return $this->converter;
+        }
+
+        $exifToolPath = realpath(__DIR__ . '/../vendor/exiftool/exiftool');
+
         if (strpos(php_uname("m"), 'x86') === 0 && php_uname("s") === "Linux") {
-            $perlBin = realpath(__DIR__ . '/../vendor/exiftool/exiftool/exiftool.bin');
+            // exiftool.bin is a static perl binary which looks up the exiftool script it self.
+            $perlBin = $exifToolPath . '/exiftool.bin';
             $perlBinIsExecutable = is_executable($perlBin);
 
             if (!$perlBinIsExecutable && is_writable($perlBin)) {
                 $perlBinIsExecutable = chmod($perlBin, 0744);
             }
             if ($perlBinIsExecutable) {
-                return $perlBin;
+                $this->converter = $perlBin;
+                return $this->converter;
             }
         }
 
+        $exifToolScript = $exifToolPath . '/exiftool';
+
         $perlBin = \OC_Helper::findBinaryPath('perl');
         if (!is_null($perlBin)) {
-            return $perlBin;
+            $this->converter = $perlBin . ' ' . $exifToolScript;
+            return $this->converter;
         }
 
         $perlBin = exec("command -v perl");
         if (!empty($perlBin)) {
-            return $perlBin;
-        }
-
-        if (!empty($perlBin)) {
-            return $perlBin;
+            $this->converter = $perlBin . ' ' . $exifToolScript;
+            return $this->converter;
         }
 
         throw new Exception('No perl executable found. Camera Raw Previews app will not work.');
@@ -180,13 +177,13 @@ class RawPreviewBase
             $this->tmpFiles[] = $previewImageTmpPath;
 
             //extract preview image using exiftool to file
-            shell_exec($this->converter . " -b -" . $previewTag . " " . escapeshellarg($localPath) . ' > ' . escapeshellarg($previewImageTmpPath));
+            shell_exec($this->getConverter() . " -b -" . $previewTag . " " . escapeshellarg($localPath) . ' > ' . escapeshellarg($previewImageTmpPath));
             if (filesize($previewImageTmpPath) < 100) {
                 throw new Exception('Unable to extract valid preview data');
             }
 
             //update previewImageTmpPath with orientation data
-            shell_exec($this->converter . ' -TagsFromFile ' . escapeshellarg($localPath) . ' -orientation -overwrite_original ' . escapeshellarg($previewImageTmpPath));
+            shell_exec($this->getConverter() . ' -TagsFromFile ' . escapeshellarg($localPath) . ' -orientation -overwrite_original ' . escapeshellarg($previewImageTmpPath));
         }
 
         Image::configure(['driver' => $this->getDriver()]);
@@ -206,7 +203,7 @@ class RawPreviewBase
      */
     public function isAvailable(FileInfo $file)
     {
-        return $this->perlFound && $file->getSize() > 0;
+        return $file->getSize() > 0;
     }
 
     protected function getThumbnailInternal(File $file, int $maxX, int $maxY): ?IImage
