@@ -86,7 +86,7 @@ class RawPreviewBase
      * @throws NotPermittedException
      * @throws NotFoundException
      */
-    protected function getLocalFile(File $file, int $maxSize = null): string
+    private function getLocalFile(File $file, int $maxSize = null): string
     {
         $useTempFile = $file->isEncrypted() || !$file->getStorage()->isLocal();
         if ($useTempFile) {
@@ -113,7 +113,7 @@ class RawPreviewBase
      * @return \Intervention\Image\Image
      * @throws Exception
      */
-    protected function getResizedPreview($localPath, $maxX, $maxY)
+    private function getResizedPreview($localPath, $maxX, $maxY)
     {
         $tagData = $this->getBestPreviewTag($localPath);
         $previewTag = $tagData['tag'];
@@ -274,7 +274,7 @@ class RawPreviewBase
     /**
      * Clean any generated temporary files
      */
-    protected function cleanTmpFiles()
+    private function cleanTmpFiles()
     {
         foreach ($this->tmpFiles as $tmpFile) {
             unlink($tmpFile);
