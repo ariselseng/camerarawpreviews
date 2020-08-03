@@ -80,24 +80,17 @@ class RawPreviewBase
      * Get a path to either the local file or temporary file
      *
      * @param File $file
-     * @param int $maxSize maximum size for temporary files
      * @return string
      * @throws LockedException
-     * @throws NotPermittedException
      * @throws NotFoundException
+     * @throws NotPermittedException
      */
-    private function getLocalFile(File $file, int $maxSize = null): string
+    private function getLocalFile(File $file): string
     {
         $useTempFile = $file->isEncrypted() || !$file->getStorage()->isLocal();
         if ($useTempFile) {
             $absPath = \OC::$server->getTempManager()->getTemporaryFile();
-
             $content = $file->fopen('r');
-
-            if ($maxSize) {
-                $content = stream_get_contents($content, $maxSize);
-            }
-
             file_put_contents($absPath, $content);
             $this->tmpFiles[] = $absPath;
             return $absPath;
