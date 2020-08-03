@@ -78,7 +78,7 @@ class RawPreviewBase
         }
 
         // we know we can handle TIFF files directly
-        if ($fileType === 'TIFF' && $this->getDriver() === self::DRIVER_IMAGICK && count(\Imagick::queryFormats($fileType)) > 0) {
+        if ($fileType === 'TIFF' && $this->isTiffCompatible()) {
             return ['tag' => 'SourceTIFF', 'ext' => 'tiff'];
         }
 
@@ -88,7 +88,7 @@ class RawPreviewBase
             if (!isset($previewData[0][$tag])) {
                 continue;
             }
-            if ($this->getDriver() !== self::DRIVER_IMAGICK || count(\Imagick::queryFormats('TIFF')) === 0) {
+            if (!$this->isTiffCompatible()) {
                 throw new Exception('Needs imagick to extract TIFF previews');
             }
             return ['tag' => $tag, 'ext' => 'tiff'];
@@ -111,6 +111,13 @@ class RawPreviewBase
             $this->driver = self::DRIVER_GD;
         }
         return $this->driver;
+    }
+
+    /**
+     * @return bool
+     */
+    private function isTiffCompatible() {
+        return $this->getDriver() === self::DRIVER_IMAGICK && count(\Imagick::queryFormats('TIFF')) > 0;
     }
 
     /**
