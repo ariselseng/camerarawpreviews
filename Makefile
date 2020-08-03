@@ -136,5 +136,5 @@ appstore:
 # Builds the source package for the app store, ignores php and js tests
 .PHONY: tests
 tests:
-	test -s $vendor_directory/exiftool/exiftool/exiftool.bin
+	test -s $(vendor_directory)/exiftool/exiftool/exiftool.bin
 	docker-compose exec --user=docker php phpunit --stop-on-failure -v --bootstrap apps2/camerarawpreviews/tests/bootstrap.php apps2/camerarawpreviews/tests/
