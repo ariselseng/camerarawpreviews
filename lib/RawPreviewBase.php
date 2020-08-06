@@ -193,7 +193,7 @@ class RawPreviewBase
             }
             return ['tag' => $tag, 'ext' => 'tiff'];
         }
-        throw new Exception('Unable to find preview data: ' . $json);
+        throw new Exception('Unable to find preview data: ' . $cmd . ' -> ' . $json);
     }
 
     /**
