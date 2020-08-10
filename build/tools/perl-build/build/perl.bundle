@@ -1,7 +1,7 @@
 static
 usepacklists
 strip ppi
-use FindBin
+use File::Basename
 use File::Glob
 use Archive::Zip
 use Compress::Zlib
