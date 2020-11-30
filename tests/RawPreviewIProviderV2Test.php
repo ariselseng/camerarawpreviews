@@ -50,7 +50,7 @@ class RawPreviewTestIProviderV2 extends TestCase
         ]
     ];
 
-    static function setupBeforeClass()
+    static function setupBeforeClass(): void
     {
         foreach (self::ASSETS as $test) {
             $localPath = sys_get_temp_dir() . '/' . $test['filename'];
@@ -66,7 +66,7 @@ class RawPreviewTestIProviderV2 extends TestCase
         }
     }
 
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
         $this->app = new \OCA\CameraRawPreviews\AppInfo\Application;
@@ -76,7 +76,7 @@ class RawPreviewTestIProviderV2 extends TestCase
         $this->previewManager = $server->getPreviewManager();
     }
 
-    protected function tearDown()
+    protected function tearDown(): void
     {
         foreach (self::ASSETS as $test) {
             $this->userFolder->get($test['filename'])->delete();
