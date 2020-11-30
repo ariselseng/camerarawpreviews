@@ -5,6 +5,7 @@ namespace OCA\CameraRawPreviews\AppInfo;
 use OCA\CameraRawPreviews\RawPreviewIProvider2;
 use OCA\CameraRawPreviews\RawPreviewIProviderV2;
 use OCP\AppFramework\App;
+use OCP\Util;
 
 class Application extends App
 {
@@ -23,9 +24,13 @@ class Application extends App
 
     private function registerScripts()
     {
+        if (!class_exists('\OCA\Viewer\Event\LoadViewer')) {
+            return;
+        }
+
         $eventDispatcher = $this->getContainer()->getServer()->getEventDispatcher();
-        $eventDispatcher->addListener('OCA\Files::loadAdditionalScripts', function () {
-            script($this->appName, 'register-viewer');  // adds js/script.js
+        $eventDispatcher->addListener(\OCA\Viewer\Event\LoadViewer::class, function () {
+            Util::addScript($this->appName, 'register-viewer');  // adds js/script.js
         });
     }
 
