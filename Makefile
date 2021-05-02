@@ -137,4 +137,4 @@ appstore:
 .PHONY: tests
 tests:
 	test -s $(vendor_directory)/exiftool/exiftool/exiftool.bin
-	docker-compose exec --user=docker php phpunit --stop-on-failure -v --bootstrap apps2/camerarawpreviews/tests/bootstrap.php apps2/camerarawpreviews/tests/
+	docker-compose exec --user=docker php phpunit  --do-not-cache-result --stop-on-failure -v --bootstrap apps2/camerarawpreviews/tests/bootstrap.php apps2/camerarawpreviews/tests/
