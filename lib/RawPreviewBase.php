@@ -120,13 +120,13 @@ class RawPreviewBase
             $this->tmpFiles[] = $previewImageTmpPath;
 
             //extract preview image using exiftool to file
-            shell_exec($this->getConverter() . " -b -" . $previewTag . " " . escapeshellarg($localPath) . ' > ' . escapeshellarg($previewImageTmpPath));
+            shell_exec($this->getConverter() . "  -ignoreMinorErrors -b -" . $previewTag . " " . escapeshellarg($localPath) . ' > ' . escapeshellarg($previewImageTmpPath));
             if (filesize($previewImageTmpPath) < 100) {
                 throw new Exception('Unable to extract valid preview data');
             }
 
             //update previewImageTmpPath with orientation data
-            shell_exec($this->getConverter() . ' -TagsFromFile ' . escapeshellarg($localPath) . ' -orientation -overwrite_original ' . escapeshellarg($previewImageTmpPath));
+            shell_exec($this->getConverter() . ' -ignoreMinorErrors -TagsFromFile ' . escapeshellarg($localPath) . ' -orientation -overwrite_original ' . escapeshellarg($previewImageTmpPath));
         }
 
         Image::configure(['driver' => $this->getDriver()]);
