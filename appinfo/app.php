@@ -1,4 +1,6 @@
 <?php
 
-$app = new \OCA\CameraRawPreviews\AppInfo\Application;
+use \OCA\CameraRawPreviews\AppInfo\Application;
+
+$app = \OC::$server->query(Application::class);
 $app->register();
