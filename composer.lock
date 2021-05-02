@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "cffbf85edfa0a448b77e60219c751ea9",
+    "content-hash": "1a39ea49a3784a9b7b5e2084bf317485",
     "packages": [
         {
             "name": "exiftool/exiftool",
@@ -12,10 +12,9 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/exiftool/exiftool.git",
-                "reference": "cc41fe6a80f2635c8f0d82ed9bf776d100426dca"
+                "reference": "ceff3cbc4564e93518f3d2a2e00d8ae203ff54af"
             },
-            "type": "library",
-            "time": "2020-07-29T19:55:53+00:00"
+            "type": "library"
         },
         {
             "name": "guzzlehttp/psr7",
@@ -257,5 +256,5 @@
     "prefer-lowest": false,
     "platform": [],
     "platform-dev": [],
-    "plugin-api-version": "1.1.0"
+    "plugin-api-version": "2.0.0"
 }

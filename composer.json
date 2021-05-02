@@ -23,7 +23,7 @@
               "source": {
                   "url": "https://github.com/exiftool/exiftool.git",
                   "type": "git",
-                  "reference":"cc41fe6a80f2635c8f0d82ed9bf776d100426dca"
+                  "reference":"ceff3cbc4564e93518f3d2a2e00d8ae203ff54af"
                 }
             }
         }
