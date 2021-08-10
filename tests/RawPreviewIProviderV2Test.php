@@ -29,11 +29,6 @@ class RawPreviewTestIProviderV2 extends TestCase
             'sha1' => 'a18d4dae67cfc0a9673c01b2d4f14fab4be68580'
         ],
         [
-            'url' => '/data/Canon/Canon EOS RP/IMG_0306.CR3',
-            'filename' => 'Canon_EOS_RP.CR3',
-            'sha1' => 'c01e5214b95b6eaba68b92406b0804bd58800bcb'
-        ],
-        [
             'url' => '/data/Canon/EOS D2000C/RAW_CANON_D2000.TIF',
             'filename' => 'Canon_EOS_2000C.TIF',
             'sha1' => 'b68b5c7d4b944fff0ad9d28e68f405f957429c49'
