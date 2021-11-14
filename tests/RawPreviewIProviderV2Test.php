@@ -8,14 +8,14 @@ use PHPUnit\Framework\TestCase;
 
 class RawPreviewTestIProviderV2 extends TestCase
 {
-
+    
     protected $app;
     protected $previewManager;
     protected $userFolder;
     const ASSETS = [
         [
             'url' => '/data/Nikon/D600/DSC_3297.NEF',
-            'filename' => 'Nikon_D600.NEF',
+            'filename' => 'Фото".NEF',
             'sha1' => '607599813cc5ea65e81595e07955a51f281bf0b7'
         ],
         [
@@ -47,6 +47,7 @@ class RawPreviewTestIProviderV2 extends TestCase
 
     static function setupBeforeClass(): void
     {
+
         foreach (self::ASSETS as $test) {
             $localPath = sys_get_temp_dir() . '/' . $test['filename'];
 
