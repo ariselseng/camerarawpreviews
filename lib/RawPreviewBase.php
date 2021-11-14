@@ -120,13 +120,13 @@ class RawPreviewBase
             $this->tmpFiles[] = $previewImageTmpPath;
 
             //extract preview image using exiftool to file
-            shell_exec($this->getConverter() . "  -ignoreMinorErrors -b -" . $previewTag . " " . escapeshellarg($localPath) . ' > ' . escapeshellarg($previewImageTmpPath));
+            shell_exec($this->getConverter() . "  -ignoreMinorErrors -b -" . $previewTag . " " . $this->escapeShellArg($localPath) . ' > ' . $this->escapeShellArg($previewImageTmpPath));
             if (filesize($previewImageTmpPath) < 100) {
                 throw new Exception('Unable to extract valid preview data');
             }
 
             //update previewImageTmpPath with orientation data
-            shell_exec($this->getConverter() . ' -ignoreMinorErrors -TagsFromFile ' . escapeshellarg($localPath) . ' -orientation -overwrite_original ' . escapeshellarg($previewImageTmpPath));
+            shell_exec($this->getConverter() . ' -ignoreMinorErrors -TagsFromFile ' . $this->escapeShellArg($localPath) . ' -orientation -overwrite_original ' . $this->escapeShellArg($previewImageTmpPath));
         }
 
         Image::configure(['driver' => $this->getDriver()]);
@@ -148,7 +148,7 @@ class RawPreviewBase
     private function getBestPreviewTag($tmpPath)
     {
 
-        $cmd = $this->getConverter() . " -json -preview:all -FileType " . escapeshellarg($tmpPath);
+        $cmd = $this->getConverter() . " -json -preview:all -FileType " . $this->escapeShellArg($tmpPath);
         $json = shell_exec($cmd);
         // get all available previews and the file type
         $previewData = json_decode($json, true);
@@ -262,6 +262,11 @@ class RawPreviewBase
             $this->driver = self::DRIVER_GD;
         }
         return $this->driver;
+    }
+
+    private function escapeShellArg($arg):string
+    {
+       return "'" . str_replace("'", "'\\''", $arg) . "'";
     }
 
     /**
