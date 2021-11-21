@@ -60,7 +60,7 @@ class RawPreviewBase
         try {
             $preview = $this->getResizedPreview($tmpPath, $maxX, $maxY);
             $image = new OCP_Image();
-            $image->loadFromData($preview);
+            $image->loadFromData((string)$preview);
             $this->cleanTmpFiles();
 
             //check if image object is valid
