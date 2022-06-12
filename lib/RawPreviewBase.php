@@ -2,7 +2,6 @@
 
 namespace OCA\CameraRawPreviews;
 
-require __DIR__ . '/../vendor/autoload.php';
 
 use Exception;
 use Intervention\Image\ImageManagerStatic as Image;
@@ -25,10 +24,10 @@ class RawPreviewBase
     protected $appName;
     protected $tmpFiles = [];
 
-    public function __construct(ILogger $logger, string $appName)
+    public function __construct(ILogger $logger)
     {
         $this->logger = $logger;
-        $this->appName = $appName;
+        $this->appName = 'camerarawpreviews';
     }
 
     /**

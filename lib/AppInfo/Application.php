@@ -2,12 +2,15 @@
 
 namespace OCA\CameraRawPreviews\AppInfo;
 
-use OCA\CameraRawPreviews\RawPreviewIProvider2;
 use OCA\CameraRawPreviews\RawPreviewIProviderV2;
+use OCP\AppFramework\Bootstrap\IBootContext;
+use OCP\AppFramework\Bootstrap\IBootstrap;
+use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\EventDispatcher\IEventDispatcher;
 use OCP\AppFramework\App;
 use OCP\Util;
 
-class Application extends App
+class Application extends App implements IBootstrap
 {
     private $appName = 'camerarawpreviews';
 
@@ -16,30 +19,28 @@ class Application extends App
         parent::__construct($this->appName);
     }
 
-    public function register()
-    {
-        $this->registerScripts();
-        $this->registerProvider();
+    public function register(IRegistrationContext $context): void {
+        include_once __DIR__ . '/../../vendor/autoload.php';
+
+        $this->registerProvider($context);
     }
 
-    private function registerScripts()
+    private function registerScripts(IBootContext $context)
     {
+
         if (!class_exists('\OCA\Viewer\Event\LoadViewer')) {
             return;
         }
 
-        $eventDispatcher = $this->getContainer()->getServer()->getEventDispatcher();
+        $eventDispatcher = $context->getServerContainer()->get(IEventDispatcher::class);
         $eventDispatcher->addListener(\OCA\Viewer\Event\LoadViewer::class, function () {
             Util::addScript($this->appName, 'register-viewer');  // adds js/script.js
         });
     }
 
-    private function registerProvider()
+    private function registerProvider(IRegistrationContext $context)
     {
-        $appName = $this->appName;
         $server = $this->getContainer()->getServer();
-        $logger = $server->getLogger();
-        $previewManager = $server->query('PreviewManager');
         $mimeTypeDetector = $server->getMimeTypeDetector();
         $mimeTypeDetector->getAllMappings(); // is really needed
 
@@ -72,13 +73,11 @@ class Application extends App
             'x3f' => ['image/x-dcraw'],
         ];
         $mimeTypeDetector->registerTypeArray($mimesToDetect);
+        $context->registerPreviewProvider(RawPreviewIProviderV2::class, '/^((image\/x-dcraw)|(image\/x-indesign))(;+.*)*$/');
+    }
 
-        $previewManager->registerProvider('/^((image\/x-dcraw)|(image\/x-indesign))(;+.*)*$/', function () use ($logger, $appName) {
-            if (interface_exists('\OCP\Preview\IProvider2')) {
-                return new RawPreviewIProvider2($logger, $appName);
-            }
-            return new RawPreviewIProviderV2($logger, $appName);
-        });
+    public function boot(IBootContext $context): void {
+        $this->registerScripts($context);
     }
 
 }
