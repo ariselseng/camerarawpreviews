@@ -127,7 +127,6 @@ appstore:
 	--exclude=".*" \
 	--exclude="sign-*.sh"
 	
-	rm "$(appstore_build_directory)"/$(app_name)/appinfo/signature.json
 	docker run --rm -v $(appstore_build_directory)/$(app_name):/$(app_name) -v ~/.nextcloud/certificates:/certs nextcloud:24-apache php /usr/src/nextcloud/occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
 	tar -czf build/$(app_name)_nextcloud.tar.gz -C "$(appstore_build_directory)" $(app_name)
 
