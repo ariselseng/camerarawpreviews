@@ -2,6 +2,7 @@
 
 namespace OCA\CameraRawPreviews\Tests;
 
+use OCP\AppFramework\App;
 use OCP\Files\NotFoundException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use PHPUnit\Framework\TestCase;
@@ -65,8 +66,7 @@ class RawPreviewTestIProviderV2 extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->app = new \OCA\CameraRawPreviews\AppInfo\Application;
-        $this->app->register();
+        $this->app = new App('camerarawpreviews');
         $server = $this->app->getContainer()->getServer();
         $this->userFolder = $server->getUserFolder('admin');
         $this->previewManager = $server->getPreviewManager();
