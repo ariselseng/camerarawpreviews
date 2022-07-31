@@ -35,7 +35,7 @@ class RawPreviewBase
      */
     public function getMimeType()
     {
-        return '/^((image\/x-dcraw)|(image\/x-indesign))(;+.*)*$/';
+        return '/^((image\/x-dcraw)|(image\/x-indesign)|(image\/heic))(;+.*)*$/';
     }
 
     /**
@@ -112,7 +112,7 @@ class RawPreviewBase
         $previewImageTmpPath = sys_get_temp_dir() . '/' . md5($localPath . uniqid()) . '.' . $tagData['ext'];
 
 
-        if ($previewTag === 'SourceTIFF') {
+        if ($previewTag === 'SourceFile') {
             // load the original file as fallback when TIFF has no preview embedded
             $previewImageTmpPath = $localPath;
         } else {
@@ -178,11 +178,18 @@ class RawPreviewBase
 
         // we know we can handle TIFF files directly
         if ($fileType === 'TIFF' && $this->isTiffCompatible()) {
-            return ['tag' => 'SourceTIFF', 'ext' => 'tiff'];
+            return ['tag' => 'SourceFile', 'ext' => 'tiff'];
+        }
+
+        if ($fileType === 'HEIF' || $fileType === 'HEIC') {
+            if ($this->isHeicCompatible()) {
+               return ['tag' => 'SourceFile', 'ext' => 'heic'];
+            }
+
+            throw new Exception('Needs imagick with HEIC support HEIC previews');
         }
 
         // extra logic for tiff previews
-        $tiffTag = null;
         foreach ($tiffTagsToCheck as $tag) {
             if (!isset($previewData[0][$tag])) {
                 continue;
@@ -244,6 +251,14 @@ class RawPreviewBase
     private function isTiffCompatible()
     {
         return $this->getDriver() === self::DRIVER_IMAGICK && count(\Imagick::queryFormats('TIFF')) > 0;
+    }
+
+    /**
+     * @return bool
+     */
+    private function isHeicCompatible()
+    {
+        return $this->getDriver() === self::DRIVER_IMAGICK && count(\Imagick::queryFormats('HEIC')) > 0;
     }
 
     /**

@@ -46,6 +46,7 @@ class Application extends App implements IBootstrap
 
         $mimesToDetect = [
             'indd' => ['image/x-indesign'],
+            'heic' => ['image/heic'],
             '3fr' => ['image/x-dcraw'],
             'arw' => ['image/x-dcraw'],
             'cr2' => ['image/x-dcraw'],
@@ -72,8 +73,9 @@ class Application extends App implements IBootstrap
             'tiff' => ['image/x-dcraw'],
             'x3f' => ['image/x-dcraw'],
         ];
+
         $mimeTypeDetector->registerTypeArray($mimesToDetect);
-        $context->registerPreviewProvider(RawPreviewIProviderV2::class, '/^((image\/x-dcraw)|(image\/x-indesign))(;+.*)*$/');
+        $context->registerPreviewProvider(RawPreviewIProviderV2::class, '/^((image\/x-dcraw)|(image\/x-indesign)|(image\/heic))(;+.*)*$/');
     }
 
     public function boot(IBootContext $context): void {
