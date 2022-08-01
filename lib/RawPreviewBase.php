@@ -181,7 +181,7 @@ class RawPreviewBase
             return ['tag' => 'SourceFile', 'ext' => 'tiff'];
         }
 
-        if ($fileType === 'HEIF' || $fileType === 'HEIC') {
+        if (in_array($fileType, ['HEIFS', 'HEIF', 'HEIC', 'HEICS'], true)) {
             if ($this->isHeicCompatible()) {
                return ['tag' => 'SourceFile', 'ext' => 'heic'];
             }
