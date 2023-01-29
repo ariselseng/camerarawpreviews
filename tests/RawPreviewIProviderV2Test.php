@@ -43,11 +43,6 @@ class RawPreviewTestIProviderV2 extends TestCase
             'url' => 'https://raw.pixls.us/data/Hasselblad/CF132/RAW_HASSELBLAD_IXPRESS_CF132.3FR',
             'filename' => 'Hasselblad_CF132.3FR',
             'sha1' => 'bcaa4c329711a8effb59682a99df3f2b15009d87'
-        ],
-        [
-            'url' => 'https://filesamples.com/samples/image/heic/sample1.heic',
-            'filename' => 'sample1.heic',
-            'sha1' => 'ff0ed3774c4f905357c7918a5dfbeb54ab04f3d7'
         ]
     ];
 
