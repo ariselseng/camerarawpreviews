@@ -35,7 +35,7 @@ class RawPreviewBase
      */
     public function getMimeType()
     {
-        return '/^((image\/x-dcraw)|(image\/x-indesign)|(image\/heic))(;+.*)*$/';
+        return '/^((image\/x-dcraw)|(image\/x-indesign))(;+.*)*$/';
     }
 
     /**
@@ -181,14 +181,6 @@ class RawPreviewBase
             return ['tag' => 'SourceFile', 'ext' => 'tiff'];
         }
 
-        if (in_array($fileType, ['HEIFS', 'HEIF', 'HEIC', 'HEICS'], true)) {
-            if ($this->isHeicCompatible()) {
-               return ['tag' => 'SourceFile', 'ext' => 'heic'];
-            }
-
-            throw new Exception('Needs imagick with HEIC support HEIC previews');
-        }
-
         // extra logic for tiff previews
         foreach ($tiffTagsToCheck as $tag) {
             if (!isset($previewData[0][$tag])) {
@@ -251,14 +243,6 @@ class RawPreviewBase
     private function isTiffCompatible()
     {
         return $this->getDriver() === self::DRIVER_IMAGICK && count(\Imagick::queryFormats('TIFF')) > 0;
-    }
-
-    /**
-     * @return bool
-     */
-    private function isHeicCompatible()
-    {
-        return $this->getDriver() === self::DRIVER_IMAGICK && count(\Imagick::queryFormats('HEIC')) > 0;
     }
 
     /**

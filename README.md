@@ -3,14 +3,13 @@
 
 A Nextcloud app that provides previews for camera **RAW** images like .CR2, .CRW, .DNG, .MRW, .NEF, .NRW, .RW2, .SRW, .SRW, etc.
 
-This app also gives you preview of Adobe **Indesign** files (.INDD) and **HEIC** photos.
+This app also gives you preview of Adobe **Indesign** files (.INDD) photos.
 
 
 ## Requirements
 * Probably **memory_limit** quite high.
 * **imagick** or **gd** module. If imagick is available, it will use that for performance.
 * For files with a TIFF preview (at least some DNG files), **imagick** is required
-* For HEIC previews, **imagick** with HEIC support is required
 
 ## Installation
 Install in Nextcloud App store.
