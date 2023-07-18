@@ -25,3 +25,11 @@ https://marketplace.owncloud.com/apps/camerarawpreviews
 ## Information about the perl binary
 - To avoid lots of issues and problems for users I am bundling a static build of perl for x86_64
 - The binary is built using an isolated docker container with this: http://software.schmorp.de/pkg/App-Staticperl.html
+
+## Troubleshooting
+- If you get no preview, make sure your raw files has an embedded preview. If it looks like this, it does not have an embedded preview:
+ ```shell
+$ exiftool -json -preview:all rawfile.dng
+ [{
+  "SourceFile": "rawfile.dng"
+}]
