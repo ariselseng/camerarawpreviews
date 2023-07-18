@@ -1,7 +1,7 @@
 # Camera RAW Previews
 [![Github All Releases](https://img.shields.io/github/downloads/ariselseng/camerarawpreviews/total.svg)](https://github.com/ariselseng/camerarawpreviews/releases) [![paypal](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/AriSelseng/2EUR)
 
-A Nextcloud app that provides previews for camera **RAW** images like .CR2, .CRW, .DNG, .MRW, .NEF, .NRW, .RW2, .SRW, .SRW, etc.
+A Nextcloud app that extracts embedded previews for camera **RAW** images like .CR2, .CRW, .DNG, .MRW, .NEF, .NRW, .RW2, .SRW, .SRW, etc.
 
 This app also gives you preview of Adobe **Indesign** files (.INDD) photos.
 
