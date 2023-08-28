@@ -2,9 +2,7 @@
     "name": "ariselseng/camerarawpreviews",
     "type": "project",
     "require": {
-        "exiftool/exiftool": "master",
-        "intervention/image": "^2.7.2",
-        "psr/http-message": "^1.1"
+        "exiftool/exiftool": "master"
     },
     "license": "agpl",
     "authors": [

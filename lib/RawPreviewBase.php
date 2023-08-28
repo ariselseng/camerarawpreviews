@@ -4,27 +4,25 @@ namespace OCA\CameraRawPreviews;
 
 
 use Exception;
-use Intervention\Image\ImageManagerStatic as Image;
+use Imagick;
 use OCP\Files\File;
 use OCP\Files\FileInfo;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\IImage;
-use OCP\ILogger;
-use OCP\Image as OCP_Image;
+use OCP\Image;
 use OCP\Lock\LockedException;
+use Psr\Log\LoggerInterface;
 
 class RawPreviewBase
 {
-    const DRIVER_IMAGICK = 'imagick';
-    const DRIVER_GD = 'gd';
     protected $converter;
     protected $driver;
     protected $logger;
     protected $appName;
     protected $tmpFiles = [];
 
-    public function __construct(ILogger $logger)
+    public function __construct(LoggerInterface $logger)
     {
         $this->logger = $logger;
         $this->appName = 'camerarawpreviews';
@@ -33,7 +31,7 @@ class RawPreviewBase
     /**
      * @return string
      */
-    public function getMimeType()
+    public function getMimeType(): string
     {
         return '/^((image\/x-dcraw)|(image\/x-indesign))(;+.*)*$/';
     }
@@ -42,24 +40,60 @@ class RawPreviewBase
      * @param FileInfo $file
      * @return bool
      */
-    public function isAvailable(FileInfo $file)
+    public function isAvailable(FileInfo $file): bool
     {
+        if (strtolower($file->getExtension()) === 'tiff' && !$this->isTiffCompatible()) {
+            return false;
+        }
+
         return $file->getSize() > 0;
     }
 
     protected function getThumbnailInternal(File $file, int $maxX, int $maxY): ?IImage
     {
         try {
-            $tmpPath = $this->getLocalFile($file);
+            $localPath = $this->getLocalFile($file);
         } catch (Exception $e) {
-            $this->logger->logException($e, ['app' => $this->appName]);
+            $this->logger->error($e->getMessage(), ['app' => $this->appName, 'exception' => $e]);
             return null;
         }
 
         try {
-            $preview = $this->getResizedPreview($tmpPath, $maxX, $maxY);
-            $image = new OCP_Image();
-            $image->loadFromData((string)$preview);
+            $tagData = $this->getBestPreviewTag($localPath);
+            $previewTag = $tagData['tag'];
+
+
+            if ($previewTag === 'SourceFile') {
+                // load the original file as fallback when TIFF has no preview embedded
+                $previewImageTmpPath = $localPath;
+            } else {
+                $previewImageTmpPath = sys_get_temp_dir() . '/' . md5($localPath . uniqid()) . '.' . $tagData['ext'];
+                $this->tmpFiles[] = $previewImageTmpPath;
+
+                //extract preview image using exiftool to file
+                shell_exec($this->getConverter() . "  -ignoreMinorErrors -b -" . $previewTag . " " . $this->escapeShellArg($localPath) . ' > ' . $this->escapeShellArg($previewImageTmpPath));
+                if (filesize($previewImageTmpPath) < 100) {
+                    throw new Exception('Unable to extract valid preview data');
+                }
+
+                //update previewImageTmpPath  with orientation data
+                shell_exec($this->getConverter() . ' -ignoreMinorErrors -TagsFromFile ' . $this->escapeShellArg($localPath) . ' -orientation -overwrite_original ' . $this->escapeShellArg($previewImageTmpPath));
+            }
+
+            $image = new Image;
+
+            // we have checked for tiff support in getBestPreviewTag
+            if ($tagData['ext'] === 'tiff') {
+                $imagick = new Imagick($previewImageTmpPath);
+                $imagick->autoOrient();
+                $imagick->setImageFormat('jpg');
+                $image->loadFromData($imagick->getImageBlob());
+            } else {
+                $image->loadFromFile($previewImageTmpPath);
+            }
+
+            $image->fixOrientation();
+            $image->scaleDownToFit($maxX, $maxY);
             $this->cleanTmpFiles();
 
             //check if image object is valid
@@ -68,7 +102,7 @@ class RawPreviewBase
             }
             return $image;
         } catch (Exception $e) {
-            $this->logger->logException($e, ['app' => $this->appName]);
+            $this->logger->error($e->getMessage(), ['app' => $this->appName, 'exception' => $e]);
 
             $this->cleanTmpFiles();
             return null;
@@ -99,52 +133,11 @@ class RawPreviewBase
     }
 
     /**
-     * @param $localPath
-     * @param $maxX
-     * @param $maxY
-     * @return \Intervention\Image\Image
-     * @throws Exception
-     */
-    private function getResizedPreview($localPath, $maxX, $maxY)
-    {
-        $tagData = $this->getBestPreviewTag($localPath);
-        $previewTag = $tagData['tag'];
-        $previewImageTmpPath = sys_get_temp_dir() . '/' . md5($localPath . uniqid()) . '.' . $tagData['ext'];
-
-
-        if ($previewTag === 'SourceFile') {
-            // load the original file as fallback when TIFF has no preview embedded
-            $previewImageTmpPath = $localPath;
-        } else {
-            $this->tmpFiles[] = $previewImageTmpPath;
-
-            //extract preview image using exiftool to file
-            shell_exec($this->getConverter() . "  -ignoreMinorErrors -b -" . $previewTag . " " . $this->escapeShellArg($localPath) . ' > ' . $this->escapeShellArg($previewImageTmpPath));
-            if (filesize($previewImageTmpPath) < 100) {
-                throw new Exception('Unable to extract valid preview data');
-            }
-
-            //update previewImageTmpPath with orientation data
-            shell_exec($this->getConverter() . ' -ignoreMinorErrors -TagsFromFile ' . $this->escapeShellArg($localPath) . ' -orientation -overwrite_original ' . $this->escapeShellArg($previewImageTmpPath));
-        }
-
-        Image::configure(['driver' => $this->getDriver()]);
-        $im = Image::make($previewImageTmpPath);
-        $im->orientate();
-        $im->resize($maxX, $maxY, function ($constraint) {
-            $constraint->aspectRatio();
-            $constraint->upsize();
-        });
-
-        return $im->encode('jpg', 90);
-    }
-
-    /**
-     * @param $tmpPath
+     * @param string $tmpPath
      * @return array
      * @throws Exception
      */
-    private function getBestPreviewTag($tmpPath)
+    private function getBestPreviewTag(string $tmpPath): array
     {
 
         $cmd = $this->getConverter() . " -json -preview:all -FileType " . $this->escapeShellArg($tmpPath);
@@ -240,31 +233,14 @@ class RawPreviewBase
     /**
      * @return bool
      */
-    private function isTiffCompatible()
+    private function isTiffCompatible(): bool
     {
-        return $this->getDriver() === self::DRIVER_IMAGICK && count(\Imagick::queryFormats('TIFF')) > 0;
+        return extension_loaded('imagick') && count(\Imagick::queryformats('TIFF')) > 0;
     }
 
-    /**
-     * @return string
-     */
-    private function getDriver(): string
+    private function escapeShellArg($arg): string
     {
-        if (!is_null($this->driver)) {
-            return $this->driver;
-        }
-
-        if (extension_loaded(self::DRIVER_IMAGICK) && count(\Imagick::queryformats('JPEG')) > 0) {
-            $this->driver = self::DRIVER_IMAGICK;
-        } else {
-            $this->driver = self::DRIVER_GD;
-        }
-        return $this->driver;
-    }
-
-    private function escapeShellArg($arg):string
-    {
-       return "'" . str_replace("'", "'\\''", $arg) . "'";
+        return "'" . str_replace("'", "'\\''", $arg) . "'";
     }
 
     /**

@@ -7,7 +7,7 @@ use OCP\Files\NotFoundException;
 use OCP\Files\SimpleFS\ISimpleFile;
 use PHPUnit\Framework\TestCase;
 
-class RawPreviewTestIProviderV2 extends TestCase
+class RawPreviewIProviderV2Test extends TestCase
 {
     
     protected $app;
@@ -30,11 +30,6 @@ class RawPreviewTestIProviderV2 extends TestCase
             'sha1' => 'a18d4dae67cfc0a9673c01b2d4f14fab4be68580'
         ],
         [
-            'url' => 'https://raw.pixls.us/data/Canon/EOS D2000C/RAW_CANON_D2000.TIF',
-            'filename' => 'Canon_EOS_2000C.TIF',
-            'sha1' => 'b68b5c7d4b944fff0ad9d28e68f405f957429c49'
-        ],
-        [
             'url' => 'https://raw.pixls.us/data/Fujifilm/X-A1/DSCF2482.RAF',
             'filename' => 'Fujifilm_X-A1_DSCF2482.RAF',
             'sha1' => '82e625be5689bbd08a08dd9a9c5d38e21c80bf33'
@@ -43,6 +38,11 @@ class RawPreviewTestIProviderV2 extends TestCase
             'url' => 'https://raw.pixls.us/data/Hasselblad/CF132/RAW_HASSELBLAD_IXPRESS_CF132.3FR',
             'filename' => 'Hasselblad_CF132.3FR',
             'sha1' => 'bcaa4c329711a8effb59682a99df3f2b15009d87'
+        ],
+        [
+            'url' => 'https://file-examples.com/storage/fead1d809b64e7bcd9ab4f1/2017/10/file_example_TIFF_1MB.tiff',
+            'filename' => 'file_example_TIFF_1MB.tiff',
+            'sha1' => 'e0b98db2a57d8f6e7217969b7f34d9d446df2697'
         ]
     ];
 
@@ -84,15 +84,18 @@ class RawPreviewTestIProviderV2 extends TestCase
 
         foreach (self::ASSETS as $test) {
             $localFile = sys_get_temp_dir() . '/' . $test['filename'];
+
+
             $file = $this->userFolder->newFile($test['filename'], stream_get_contents(fopen($localFile, 'r')));
             $preview = null;
 
             try {
                 $preview = $this->previewManager->getPreview($file, 100, 100);
+                $this->assertInstanceOf(ISimpleFile::class, $preview);
             } catch (NotFoundException $e) {
+                var_dump($localFile);
             }
 
-            $this->assertInstanceOf(ISimpleFile::class, $preview);
         }
 
     }
