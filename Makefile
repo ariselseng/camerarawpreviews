@@ -134,4 +134,4 @@ appstore:
 .PHONY: tests
 tests:
 	test -s $(vendor_directory)/exiftool/exiftool/exiftool.bin
-	docker exec --user=docker $(docker ps|grep nextcloud|awk '{print $1}') phpunit  --do-not-cache-result --stop-on-failure -v --bootstrap apps2/camerarawpreviews/tests/bootstrap.php apps2/camerarawpreviews/tests/
+	docker exec --workdir /var/www/html/apps-extra/camerarawpreviews --user www-data $(docker ps|grep nextcloud|awk '{print $1}') /usr/local/bin/phpunit9 --do-not-cache-result --stop-on-failure -v --bootstrap tests/bootstrap.php tests/
