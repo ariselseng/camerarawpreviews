@@ -54,7 +54,7 @@ class RawPreviewBase
         try {
             $localPath = $this->getLocalFile($file);
         } catch (Exception $e) {
-            $this->logger->error($e->getMessage(), ['app' => $this->appName, 'exception' => $e]);
+            $this->logger->warning($e->getMessage(), ['app' => $this->appName, 'exception' => $e]);
             return null;
         }
 
@@ -102,7 +102,7 @@ class RawPreviewBase
             }
             return $image;
         } catch (Exception $e) {
-            $this->logger->error($e->getMessage(), ['app' => $this->appName, 'exception' => $e]);
+            $this->logger->warning($e->getMessage(), ['app' => $this->appName, 'exception' => $e]);
 
             $this->cleanTmpFiles();
             return null;
