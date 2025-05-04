@@ -19,4 +19,7 @@
         <nextcloud min-version="28" max-version="31"/>
     </dependencies>
     <types><filesystem/></types>
+    <commands>
+        <command>OCA\CameraRawPreviews\Command\DeletePreviews</command>
+    </commands>
 </info>
