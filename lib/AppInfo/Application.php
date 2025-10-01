@@ -34,7 +34,7 @@ class Application extends App implements IBootstrap
 
         $eventDispatcher = $context->getServerContainer()->get(IEventDispatcher::class);
         $eventDispatcher->addListener(\OCA\Viewer\Event\LoadViewer::class, function () {
-            Util::addScript($this->appName, 'register-viewer');  // adds js/script.js
+            Util::addInitScript($this->appName, 'register-viewer');  // adds js/script.js
         });
     }
 
