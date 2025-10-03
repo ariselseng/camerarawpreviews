@@ -6,7 +6,7 @@
     <summary>Preview and show camera RAW files in Nextcloud</summary>
     <description>
         <![CDATA[This app will make previews of &quot;RAW&quot; files from cameras in Nextcloud.]]></description>
-    <version>0.8.7</version>
+    <version>0.8.8</version>
     <licence>agpl</licence>
     <author mail="ari@selseng.net" >Ari Selseng</author>
     <namespace>CameraRawPreviews</namespace>
@@ -16,7 +16,7 @@
     <bugs>https://github.com/ariselseng/camerarawpreviews/issues</bugs>
     <dependencies>
         <php min-version="8.1"></php>
-        <nextcloud min-version="28" max-version="31"/>
+        <nextcloud min-version="29" max-version="32"/>
     </dependencies>
     <types><filesystem/></types>
 </info>
