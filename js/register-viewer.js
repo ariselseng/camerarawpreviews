@@ -1,4 +1,4 @@
-if (OCA.Viewer) {
+if (OCA?.Viewer?.registerHandler) {
 	const RAWViewer = {
 		name: 'RAWViewer',
 		props: {
@@ -9,18 +9,25 @@ if (OCA.Viewer) {
 			if (!this.previewPath) {
 				return createElement('div', 'Preview not available')
 			}
-			const url = OC.generateUrl(this.previewPath)
+
 			return createElement('img', {
 				attrs: {
-					src: url,
+					src: this.previewPath,
 					alt: this.filename || 'RAW preview',
 					style: 'max-width: 100%; max-height: 100%; object-fit: contain;',
 				},
 				on: {
 					load: () => {
-						this.doneLoading()
-					}
-				}
+						if (typeof this.doneLoading === 'function') {
+							this.doneLoading()
+						}
+					},
+					error: () => {
+						if (typeof this.doneLoading === 'function') {
+							this.doneLoading()
+						}
+					},
+				},
 			})
 		},
 	}
