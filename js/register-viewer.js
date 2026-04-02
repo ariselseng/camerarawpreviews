@@ -1,4 +1,4 @@
-if (OCA?.Viewer?.registerHandler) {
+if (typeof OCA !== 'undefined' && OCA.Viewer && typeof OCA.Viewer.registerHandler === 'function') {
 	const RAWViewer = {
 		name: 'RAWViewer',
 		props: {
@@ -35,9 +35,7 @@ if (OCA?.Viewer?.registerHandler) {
 	OCA.Viewer.registerHandler({
 		id: 'camerarawpreviews',
 		group: 'media',
-		mimes: [
-			'image/x-dcraw',
-		],
+		mimes: ['image/x-dcraw'],
 		component: RAWViewer,
 	})
 }
