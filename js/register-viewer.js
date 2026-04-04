@@ -10,9 +10,15 @@ if (typeof OCA !== 'undefined' && OCA.Viewer && typeof OCA.Viewer.registerHandle
 				return createElement('div', 'Preview not available')
 			}
 
+			const isAbsolute = /^https?:\/\//i.test(this.previewPath)
+			const isRootRelative = this.previewPath.charAt(0) === '/'
+			const url = (isAbsolute || isRootRelative)
+				? this.previewPath
+				: (typeof OC !== 'undefined' ? OC.generateUrl(this.previewPath) : this.previewPath)
+
 			return createElement('img', {
 				attrs: {
-					src: this.previewPath,
+					src: url,
 					alt: this.filename || 'RAW preview',
 					style: 'max-width: 100%; max-height: 100%; object-fit: contain;',
 				},
