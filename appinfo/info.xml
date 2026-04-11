@@ -16,7 +16,7 @@
     <bugs>https://github.com/ariselseng/camerarawpreviews/issues</bugs>
     <dependencies>
         <php min-version="8.1"></php>
-        <nextcloud min-version="29" max-version="32"/>
+        <nextcloud min-version="29" max-version="33"/>
     </dependencies>
     <types><filesystem/></types>
 </info>
