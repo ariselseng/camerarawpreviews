@@ -16,11 +16,11 @@ use Psr\Log\LoggerInterface;
 
 class RawPreviewBase
 {
-    protected $converter;
-    protected $driver;
-    protected $logger;
-    protected $appName;
-    protected $tmpFiles = [];
+    protected ?string $converter = null;
+    protected ?string $driver = null;
+    protected LoggerInterface $logger;
+    protected string $appName;
+    protected array $tmpFiles = [];
 
     public function __construct(LoggerInterface $logger)
     {
