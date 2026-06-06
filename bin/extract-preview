@@ -1,0 +1,155 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Debugging CLI for the Camera RAW Previews app.
+ *
+ * Runs the exact same extraction pipeline the Nextcloud preview provider uses,
+ * against a single file on disk. Use it when a user reports that a RAW file
+ * shows no preview: if extraction fails or picks an unexpected method here,
+ * that is why the thumbnail is missing.
+ *
+ * Usage: bin/extract-preview <raw-file> [output-file]
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+require __DIR__ . '/../lib/PreviewExtractor.php';
+
+use OCA\CameraRawPreviews\PreviewExtractor;
+
+class PreviewExtractorCLI
+{
+    public function run(array $args): int
+    {
+        if (count($args) < 2) {
+            $this->showUsage();
+            return 1;
+        }
+
+        $rawFile = $args[1];
+        $outputFile = $args[2] ?? null;
+
+        // Validate input file
+        if (!file_exists($rawFile)) {
+            $this->error("File not found: $rawFile");
+            return 1;
+        }
+
+        if (!is_readable($rawFile)) {
+            $this->error("File not readable: $rawFile");
+            return 1;
+        }
+
+        // Extract JPEG
+        $this->info("Extracting preview from: " . basename($rawFile));
+        $this->info("File size: " . $this->formatBytes(filesize($rawFile)));
+        $this->info("");
+
+        $startTime = microtime(true);
+        $method = null;
+        $jpegData = PreviewExtractor::extractPreview($rawFile, $method);
+        $elapsed = microtime(true) - $startTime;
+
+        if ($jpegData === null) {
+            $this->error("Failed to extract JPEG preview");
+            return 1;
+        }
+
+        // Show results
+        $jpegSize = strlen($jpegData);
+        $this->success("✓ Extraction successful");
+        $this->info("  Method: " . ($method ?? 'unknown'));
+        $this->info("  JPEG size: " . $this->formatBytes($jpegSize));
+        $this->info("  Time: " . round($elapsed * 1000, 2) . "ms");
+        $this->info("  Valid: " . ($this->isValidJpeg($jpegData) ? 'YES' : 'NO'));
+        $this->info("");
+
+        // Output file
+        if ($outputFile === null) {
+            // Generate output filename from input
+            $pathInfo = pathinfo($rawFile);
+            $outputFile = $pathInfo['dirname'] . '/' . $pathInfo['filename'] . '_preview.jpg';
+        }
+
+        // Write to file
+        if (file_put_contents($outputFile, $jpegData) === false) {
+            $this->error("Failed to write output file: $outputFile");
+            return 1;
+        }
+
+        $this->success("✓ Preview saved to: $outputFile");
+        return 0;
+    }
+
+    private function showUsage()
+    {
+        echo "Camera RAW Previews - preview extraction debug tool\n";
+        echo "\n";
+        echo "USAGE:\n";
+        echo "  bin/extract-preview <raw-file> [output-file]\n";
+        echo "\n";
+        echo "DESCRIPTION:\n";
+        echo "  Runs the same extraction the app's preview provider uses against a\n";
+        echo "  single file, so you can see whether a preview can be produced and\n";
+        echo "  which extractor handles the file. Use it to diagnose reports of\n";
+        echo "  RAW files that show no thumbnail in Nextcloud.\n";
+        echo "\n";
+        echo "  On success it prints the extractor used (Method), the JPEG size and\n";
+        echo "  whether the result decodes, then writes the preview to disk. On\n";
+        echo "  failure it reports that no preview could be extracted.\n";
+        echo "\n";
+        echo "ARGUMENTS:\n";
+        echo "  <raw-file>      Path to the RAW/image file to inspect (required)\n";
+        echo "  [output-file]   Output JPEG path (optional, defaults to same\n";
+        echo "                  directory as input with '_preview.jpg' suffix)\n";
+        echo "\n";
+        echo "EXAMPLES:\n";
+        echo "  # Inspect a file users say has no preview\n";
+        echo "  bin/extract-preview photo.CR2\n";
+        echo "  # => Saves to: photo_preview.jpg\n";
+        echo "\n";
+        echo "  # Write the extracted preview to a specific path\n";
+        echo "  bin/extract-preview photo.NEF preview.jpg\n";
+        echo "\n";
+    }
+
+    private function isValidJpeg(string $data): bool
+    {
+        // Decode with GD rather than checking raw markers: some previews (e.g.
+        // repaired Minolta MRW) carry a trailing byte after the EOI yet still
+        // decode perfectly. This mirrors JpegValidator used by the library.
+        $info = @getimagesizefromstring($data);
+        if ($info === false || ($info[2] ?? null) !== IMAGETYPE_JPEG) {
+            return false;
+        }
+        return @imagecreatefromstring($data) !== false;
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB'];
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+        $bytes /= (1 << (10 * $pow));
+
+        return round($bytes, 2) . ' ' . $units[$pow];
+    }
+
+    private function success(string $message)
+    {
+        echo "\033[32m$message\033[0m\n";
+    }
+
+    private function error(string $message)
+    {
+        echo "\033[31m✗ $message\033[0m\n";
+    }
+
+    private function info(string $message)
+    {
+        echo "$message\n";
+    }
+}
+
+$cli = new PreviewExtractorCLI();
+exit($cli->run($argv));
