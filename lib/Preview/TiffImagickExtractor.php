@@ -50,6 +50,25 @@ class TiffImagickExtractor implements FormatExtractor
         try {
             $imagick = new \Imagick();
             $imagick->readImage($reader->path());
+
+            // A TIFF can hold several frames — e.g. a usable full-colour preview
+            // plus a tiny 16-bit reduced image. Imagick's default frame is not
+            // necessarily the best one (on the Canon 1D .TIF it lands on a small
+            // 16-bit frame that renders near-black), so pick the largest frame
+            // by pixel area.
+            $bestIndex = 0;
+            $bestArea = -1;
+            $count = $imagick->getNumberImages();
+            for ($i = 0; $i < $count; $i++) {
+                $imagick->setIteratorIndex($i);
+                $area = $imagick->getImageWidth() * $imagick->getImageHeight();
+                if ($area > $bestArea) {
+                    $bestArea = $area;
+                    $bestIndex = $i;
+                }
+            }
+            $imagick->setIteratorIndex($bestIndex);
+
             $imagick->autoOrient();
             $imagick->setImageFormat('jpg');
             $blob = $imagick->getImageBlob();
