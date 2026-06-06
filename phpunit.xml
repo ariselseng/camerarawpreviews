@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         bootstrap="tests/unit-bootstrap.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache">
+    <testsuites>
+        <!--
+            Dependency-free unit tests. Run with:
+                phpunit -c phpunit.xml
+            The integration suite (tests/RawPreviewIProviderV2Test.php) needs a
+            running Nextcloud and is executed via the app container's own config.
+        -->
+        <testsuite name="unit">
+            <file>tests/PreviewExtractorTest.php</file>
+            <file>tests/OrientationReaderTest.php</file>
+            <file>tests/MrwExtractorTest.php</file>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <file>lib/PreviewExtractor.php</file>
+            <file>lib/Preview/Support/OrientationReader.php</file>
+            <file>lib/Preview/MrwExtractor.php</file>
+        </include>
+    </source>
+</phpunit>

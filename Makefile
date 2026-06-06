@@ -47,6 +47,9 @@ source_package_name=$(source_build_directory)/$(app_name)
 appstore_build_directory=$(CURDIR)/build/artifacts/appstore
 appstore_package_name=$(appstore_build_directory)/$(app_name)
 composer=$(shell which composer 2> /dev/null)
+phpunit=$(shell which phpunit 2> /dev/null)
+phpunit_version=11
+phpunit_phar=$(build_tools_directory)/phpunit.phar
 
 all: build
 
@@ -112,7 +115,6 @@ source:
 # Builds the source package for the app store, ignores php and js tests
 .PHONY: appstore
 appstore:
-	test -s $(vendor_directory)/exiftool/exiftool/exiftool.bin
 	rm -rf $(appstore_build_directory)
 	mkdir -p $(appstore_build_directory)
 	rsync -r ../$(app_name)/ $(appstore_build_directory)/$(app_name) \
@@ -130,8 +132,23 @@ appstore:
 	docker run --rm -v $(appstore_build_directory)/$(app_name):/$(app_name):z -v ~/.nextcloud/certificates:/certs:z nextcloud:27-apache php /usr/src/nextcloud/occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
 	tar -czf build/$(app_name)_nextcloud.tar.gz -C "$(appstore_build_directory)" $(app_name)
 
-# Builds the source package for the app store, ignores php and js tests
+# Runs the dependency-free PreviewExtractor unit tests (pure PHP + GD, no
+# Nextcloud or docker container required). If phpunit is not on PATH a phar is
+# fetched into build/tools.
+.PHONY: unit-tests
+unit-tests:
+ifeq (, $(phpunit))
+	@if [ ! -f $(phpunit_phar) ]; then \
+		echo "No phpunit command available, downloading PHPUnit $(phpunit_version) from the web"; \
+		mkdir -p $(build_tools_directory); \
+		curl -sSL https://phar.phpunit.de/phpunit-$(phpunit_version).phar -o $(phpunit_phar); \
+	fi
+	php $(phpunit_phar) -c phpunit.xml
+else
+	$(phpunit) -c phpunit.xml
+endif
+
+# Runs the Nextcloud integration tests inside the app container.
 .PHONY: tests
 tests:
-	test -s $(vendor_directory)/exiftool/exiftool/exiftool.bin
-	docker exec --workdir /var/www/html/apps-extra/camerarawpreviews --user www-data $(docker ps|grep nextcloud|awk '{print $1}') /usr/local/bin/phpunit9 --do-not-cache-result --stop-on-failure -v --bootstrap tests/bootstrap.php tests/
+	docker exec --workdir /var/www/html/apps-extra/camerarawpreviews --user www-data $(docker ps|grep nextcloud|grep php|awk '{print $1}') /usr/local/bin/phpunit9 --do-not-cache-result --stop-on-failure -v --bootstrap tests/bootstrap.php tests/

@@ -4,7 +4,6 @@ namespace OCA\CameraRawPreviews;
 
 
 use Exception;
-use Imagick;
 use OCP\Files\File;
 use OCP\Files\FileInfo;
 use OCP\Files\NotFoundException;
@@ -16,11 +15,17 @@ use Psr\Log\LoggerInterface;
 
 class RawPreviewBase
 {
-    protected ?string $converter = null;
-    protected ?string $driver = null;
     protected LoggerInterface $logger;
     protected string $appName;
     protected array $tmpFiles = [];
+
+    /**
+     * One-entry cache so the extraction done by {@see isAvailable()} can be
+     * reused by {@see getThumbnailInternal()} for the same local file, instead
+     * of decoding/rendering the preview twice. Keyed by local path.
+     */
+    private ?string $cachedPath = null;
+    private ?string $cachedJpeg = null;
 
     public function __construct(LoggerInterface $logger)
     {
@@ -37,16 +42,37 @@ class RawPreviewBase
     }
 
     /**
+     * Report whether this provider can actually produce a preview for $file.
+     *
+     * Beyond the cheap guards (non-empty, and Imagick present for plain TIFFs),
+     * we genuinely try to extract a preview so Nextcloud is not told a preview
+     * exists only for getThumbnail() to later return null. The extraction is
+     * cached and reused by getThumbnailInternal(), so this costs nothing extra.
+     *
+     * The deep check only runs when the bytes are reachable cheaply (local,
+     * unencrypted storage). For external/encrypted storage we avoid downloading
+     * the file just to probe it and optimistically report available, letting
+     * getThumbnail() do the real work.
+     *
      * @param FileInfo $file
      * @return bool
      */
     public function isAvailable(FileInfo $file): bool
     {
+        if ($file->getSize() <= 0) {
+            return false;
+        }
+
         if (strtolower($file->getExtension()) === 'tiff' && !$this->isTiffCompatible()) {
             return false;
         }
 
-        return $file->getSize() > 0;
+        $localPath = $this->getLocalPathIfCheap($file);
+        if ($localPath === null) {
+            return true;
+        }
+
+        return $this->extractPreviewCached($localPath) !== null;
     }
 
     protected function getThumbnailInternal(File $file, int $maxX, int $maxY): ?IImage
@@ -59,40 +85,22 @@ class RawPreviewBase
         }
 
         try {
-            $tagData = $this->getBestPreviewTag($localPath);
-            $previewTag = $tagData['tag'];
-
-
-            if ($previewTag === 'SourceFile') {
-                // load the original file as fallback when TIFF has no preview embedded
-                $previewImageTmpPath = $localPath;
-            } else {
-                $previewImageTmpPath = sys_get_temp_dir() . '/' . md5($localPath . uniqid()) . '.' . $tagData['ext'];
-                $this->tmpFiles[] = $previewImageTmpPath;
-
-                //extract preview image using exiftool to file
-                shell_exec($this->getConverter() . "  -ignoreMinorErrors -b -" . $previewTag . " " . $this->escapeShellArg($localPath) . ' > ' . $this->escapeShellArg($previewImageTmpPath));
-                if (filesize($previewImageTmpPath) < 100) {
-                    throw new Exception('Unable to extract valid preview data');
-                }
-
-                //update previewImageTmpPath  with orientation data
-                shell_exec($this->getConverter() . ' -ignoreMinorErrors -TagsFromFile ' . $this->escapeShellArg($localPath) . ' -orientation -overwrite_original ' . $this->escapeShellArg($previewImageTmpPath));
+            // PreviewExtractor handles every supported format (embedded-JPEG RAW,
+            // InDesign, Minolta MRW, and the Imagick TIFF fallback) and returns
+            // an upright JPEG — orientation is already baked in for us — so the
+            // provider only has to write, load and scale a single image.
+            $jpegData = $this->extractPreviewCached($localPath);
+            if ($jpegData === null) {
+                throw new Exception('Unable to extract valid preview data from RAW file');
             }
+
+            // Save extracted JPEG to a temporary file
+            $previewImageTmpPath = sys_get_temp_dir() . '/' . md5($localPath . uniqid()) . '.jpg';
+            $this->tmpFiles[] = $previewImageTmpPath;
+            file_put_contents($previewImageTmpPath, $jpegData);
 
             $image = new Image;
-
-            // we have checked for tiff support in getBestPreviewTag
-            if ($tagData['ext'] === 'tiff') {
-                $imagick = new Imagick($previewImageTmpPath);
-                $imagick->autoOrient();
-                $imagick->setImageFormat('jpg');
-                $image->loadFromData($imagick->getImageBlob());
-            } else {
-                $image->loadFromFile($previewImageTmpPath);
-            }
-
-            $image->fixOrientation();
+            $image->loadFromFile($previewImageTmpPath);
             $image->scaleDownToFit($maxX, $maxY);
             $this->cleanTmpFiles();
 
@@ -110,6 +118,40 @@ class RawPreviewBase
     }
 
     /**
+     * Extract a preview JPEG, reusing the last result if the same local path is
+     * requested again (e.g. isAvailable() then getThumbnail() on one file).
+     *
+     * @param string $localPath
+     * @return string|null JPEG bytes, or null if no preview could be produced.
+     */
+    private function extractPreviewCached(string $localPath): ?string
+    {
+        if ($this->cachedPath !== $localPath) {
+            $this->cachedPath = $localPath;
+            $this->cachedJpeg = PreviewExtractor::extractPreview($localPath);
+        }
+        return $this->cachedJpeg;
+    }
+
+    /**
+     * Return a readable local path for $file when it can be obtained without
+     * copying — i.e. on local, unencrypted storage. Returns null otherwise (no
+     * temp file is created and no state is mutated), so isAvailable() can probe
+     * cheaply and skip the deep check for external/encrypted storage.
+     *
+     * @param FileInfo $file
+     * @return string|null
+     */
+    private function getLocalPathIfCheap(FileInfo $file): ?string
+    {
+        if ($file->isEncrypted() || !$file->getStorage()->isLocal()) {
+            return null;
+        }
+        $path = $file->getStorage()->getLocalFile($file->getInternalPath());
+        return (is_string($path) && $path !== '' && is_file($path)) ? $path : null;
+    }
+
+    /**
      * Get a path to either the local file or temporary file
      *
      * @param File $file
@@ -120,114 +162,17 @@ class RawPreviewBase
      */
     private function getLocalFile(File $file): string
     {
-        $useTempFile = $file->isEncrypted() || !$file->getStorage()->isLocal();
-        if ($useTempFile) {
-            $absPath = \OC::$server->getTempManager()->getTemporaryFile();
-            $content = $file->fopen('r');
-            file_put_contents($absPath, $content);
-            $this->tmpFiles[] = $absPath;
-            return $absPath;
-        } else {
-            return $file->getStorage()->getLocalFile($file->getInternalPath());
-        }
-    }
-
-    /**
-     * @param string $tmpPath
-     * @return array
-     * @throws Exception
-     */
-    private function getBestPreviewTag(string $tmpPath): array
-    {
-
-        $cmd = $this->getConverter() . " -json -preview:all -FileType " . $this->escapeShellArg($tmpPath);
-        $json = shell_exec($cmd);
-        // get all available previews and the file type
-        $previewData = json_decode($json, true);
-        $fileType = $previewData[0]['FileType'] ?? 'n/a';
-
-        // potential tags in priority
-        $tagsToCheck = [
-            'JpgFromRaw',
-            'PageImage',
-            'PreviewImage',
-            'OtherImage',
-            'ThumbnailImage',
-        ];
-
-        // tiff tags that need extra checks
-        $tiffTagsToCheck = [
-            'PreviewTIFF',
-            'ThumbnailTIFF'
-        ];
-
-        // return at first found tag
-        foreach ($tagsToCheck as $tag) {
-            if (!isset($previewData[0][$tag])) {
-                continue;
-            }
-            return ['tag' => $tag, 'ext' => 'jpg'];
+        $localPath = $this->getLocalPathIfCheap($file);
+        if ($localPath !== null) {
+            return $localPath;
         }
 
-        // we know we can handle TIFF files directly
-        if ($fileType === 'TIFF' && $this->isTiffCompatible()) {
-            return ['tag' => 'SourceFile', 'ext' => 'tiff'];
-        }
-
-        // extra logic for tiff previews
-        foreach ($tiffTagsToCheck as $tag) {
-            if (!isset($previewData[0][$tag])) {
-                continue;
-            }
-            if (!$this->isTiffCompatible()) {
-                throw new Exception('Needs imagick to extract TIFF previews');
-            }
-            return ['tag' => $tag, 'ext' => 'tiff'];
-        }
-        throw new Exception('Unable to find preview data: ' . $cmd . ' -> ' . $json);
-    }
-
-    /**
-     * @return string
-     * @throws Exception
-     */
-    private function getConverter()
-    {
-        if (!is_null($this->converter)) {
-            return $this->converter;
-        }
-
-        $exifToolPath = realpath(__DIR__ . '/../vendor/exiftool/exiftool');
-
-        if (strpos(php_uname("m"), 'x86') === 0 && php_uname("s") === "Linux") {
-            // exiftool.bin is a static perl binary which looks up the exiftool script it self.
-            $perlBin = $exifToolPath . '/exiftool.bin';
-            $perlBinIsExecutable = is_executable($perlBin);
-
-            if (!$perlBinIsExecutable && is_writable($perlBin)) {
-                $perlBinIsExecutable = chmod($perlBin, 0744);
-            }
-            if ($perlBinIsExecutable) {
-                $this->converter = $perlBin;
-                return $this->converter;
-            }
-        }
-
-        $exifToolScript = $exifToolPath . '/exiftool';
-
-        $perlBin = \OC_Helper::findBinaryPath('perl');
-        if (!is_null($perlBin)) {
-            $this->converter = $perlBin . ' ' . $exifToolScript;
-            return $this->converter;
-        }
-
-        $perlBin = exec("command -v perl");
-        if (!empty($perlBin)) {
-            $this->converter = $perlBin . ' ' . $exifToolScript;
-            return $this->converter;
-        }
-
-        throw new Exception('No perl executable found. Camera Raw Previews app will not work.');
+        // Encrypted or non-local storage: copy the contents to a temp file.
+        $absPath = \OC::$server->getTempManager()->getTemporaryFile();
+        $content = $file->fopen('r');
+        file_put_contents($absPath, $content);
+        $this->tmpFiles[] = $absPath;
+        return $absPath;
     }
 
     /**
@@ -236,11 +181,6 @@ class RawPreviewBase
     private function isTiffCompatible(): bool
     {
         return extension_loaded('imagick') && count(\Imagick::queryformats('TIFF')) > 0;
-    }
-
-    private function escapeShellArg($arg): string
-    {
-        return "'" . str_replace("'", "'\\''", $arg) . "'";
     }
 
     /**

@@ -1,9 +1,7 @@
 {
     "name": "ariselseng/camerarawpreviews",
     "type": "project",
-    "require": {
-        "exiftool/exiftool": "master"
-    },
+    "require": {},
     "license": "agpl",
     "authors": [
         {
@@ -12,19 +10,5 @@
         }
     ],
     "minimum-stability": "dev",
-    "prefer-stable": true,
-    "repositories": [
-        {
-            "type":"package",
-            "package": {
-              "name": "exiftool/exiftool",
-              "version":"master",
-              "source": {
-                  "url": "https://github.com/exiftool/exiftool.git",
-                  "type": "git",
-                  "reference":"1e17485cbb372a502e5b9d052d01303db735e6fa"
-                }
-            }
-        }
-    ]
+    "prefer-stable": true
 }
