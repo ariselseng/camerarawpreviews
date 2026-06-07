@@ -8,28 +8,20 @@ This app also gives you preview of Adobe **Indesign** files (.INDD) photos.
 
 ## Requirements
 * Probably **memory_limit** quite high.
-* **imagick** or **gd** module. If imagick is available, it will use that for performance.
-* For files with a TIFF preview (at least some DNG files), **imagick** is required
+* The **gd** module (required by Nextcloud itself).
+* The **imagick** module is optional. It is only needed to render TIFF-based files that carry no extractable embedded JPEG (e.g. plain TIFFs and some DNG/RAW variants).
 
 ## Installation
 Install in Nextcloud App store.
 https://apps.nextcloud.com/apps/camerarawpreviews
 
-Install in ownCloud Marketplace (older version that is not supported anymore, due to too much difference between owncloud and nextcloud now)
-https://marketplace.owncloud.com/apps/camerarawpreviews
-
 ## Building locally
 - Run "make"
 - Place this app in **./apps/**
 
-## Information about the perl binary
-- To avoid lots of issues and problems for users I am bundling a static build of perl for x86_64
-- The binary is built using an isolated docker container with this: http://software.schmorp.de/pkg/App-Staticperl.html
-
 ## Troubleshooting
-- If you get no preview, make sure your raw files has an embedded preview. If it looks like this, it does not have an embedded preview:
+- If you get no preview, the RAW file probably has no extractable embedded preview. You can check this with the bundled debug tool, which runs the exact same extraction pipeline the preview provider uses:
  ```shell
-$ exiftool -json -preview:all rawfile.dng
- [{
-  "SourceFile": "rawfile.dng"
-}]
+$ bin/extract-preview rawfile.dng
+```
+ On success it reports which extractor handled the file, the JPEG size and whether the result decodes, and writes the preview next to the input. On failure it reports that no preview could be extracted.
