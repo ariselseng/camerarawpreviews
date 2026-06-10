@@ -67,12 +67,7 @@ class RawPreviewBase
             return false;
         }
 
-        $localPath = $this->getLocalPathIfCheap($file);
-        if ($localPath === null) {
-            return true;
-        }
-
-        return $this->extractPreviewCached($localPath) !== null;
+        return true;
     }
 
     protected function getThumbnailInternal(File $file, int $maxX, int $maxY): ?IImage
