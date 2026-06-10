@@ -1,35 +1,38 @@
 # Camera RAW Previews
 [![Github All Releases](https://img.shields.io/github/downloads/ariselseng/camerarawpreviews/total.svg)](https://github.com/ariselseng/camerarawpreviews/releases) [![paypal](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.me/AriSelseng/2EUR)
 
-A Nextcloud app that extracts embedded previews for camera **RAW** images like .CR2, .CRW, .DNG, .MRW, .NEF, .NRW, .RW2, .SRW, .SRW, etc.
+A Nextcloud app that generates previews for camera **RAW** images like .CR2, .CR3, .CRW, .DNG, .MRW, .NEF, .NRW, .RW2, .SRW, .ARW, etc.
 
-This app also gives you preview of Adobe **Indesign** files (.INDD) photos.
+This app also gives you previews of Adobe **InDesign** files (.INDD).
 
+## How it works
+
+The app tries several strategies in order, stopping at the first that succeeds:
+
+1. **Embedded JPEG** — most RAW files carry a full-resolution JPEG preview baked in by the camera. This is fast and lossless.
+2. **MRW** — Minolta RAW files get their own dedicated extractor.
+3. **InDesign** — Adobe InDesign documents embed a page preview in XMP.
+4. **Imagick TIFF** — for TIFF-based files with no embedded JPEG (e.g. plain TIFFs, some DNGs), ImageMagick is used if available.
+5. **rs-fallback** — a bundled native binary (built with [libraw](https://www.libraw.org/)) develops the RAW data directly. This is the last resort for files that have no extractable preview.
 
 ## Requirements
-* Probably **memory_limit** quite high.
-* **imagick** or **gd** module. If imagick is available, it will use that for performance.
-* For files with a TIFF preview (at least some DNG files), **imagick** is required
+
+- The **gd** PHP module (required by Nextcloud itself).
+- The **imagick** PHP module is optional. It is only needed for TIFF-based files with no embedded JPEG preview.
+- A reasonably high **memory_limit** in PHP (e.g. 512M or more for large RAW files).
 
 ## Installation
-Install in Nextcloud App store.
+
+Install from the Nextcloud App Store:
 https://apps.nextcloud.com/apps/camerarawpreviews
 
-Install in ownCloud Marketplace (older version that is not supported anymore, due to too much difference between owncloud and nextcloud now)
-https://marketplace.owncloud.com/apps/camerarawpreviews
-
-## Building locally
-- Run "make"
-- Place this app in **./apps/**
-
-## Information about the perl binary
-- To avoid lots of issues and problems for users I am bundling a static build of perl for x86_64
-- The binary is built using an isolated docker container with this: http://software.schmorp.de/pkg/App-Staticperl.html
 
 ## Troubleshooting
-- If you get no preview, make sure your raw files has an embedded preview. If it looks like this, it does not have an embedded preview:
- ```shell
-$ exiftool -json -preview:all rawfile.dng
- [{
-  "SourceFile": "rawfile.dng"
-}]
+
+If you get no preview, the RAW file may have no extractable embedded preview and the rs-fallback binary may not support that format. You can diagnose this with the bundled debug tool, which runs the exact same extraction pipeline the preview provider uses:
+
+```shell
+$ bin/extract-preview rawfile.dng
+```
+
+On success it reports which extractor handled the file, the JPEG size and whether the result decodes, and writes the preview next to the input. On failure it reports that no preview could be extracted.

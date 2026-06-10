@@ -1,0 +1,55 @@
+# syntax=docker/dockerfile:1
+#
+# Build-only image: produces a portable glibc binary, not a runtime image.
+# We build on Debian bullseye (glibc 2.31, ~2020) so the resulting binary runs
+# on practically every still-supported Linux distro — glibc is backwards
+# compatible, so a binary built against an OLD glibc runs on NEWER ones.
+#
+# This container is a build sandbox only. Extract the binary with build.sh; the
+# Nextcloud app downloads and runs it as a CLI — no Docker is needed at runtime.
+
+FROM rust:1-bullseye AS build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        cmake \
+        g++ \
+        libraw-dev \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Work around two macOS-isms hardcoded in raw_preview_rs 0.1.2's build.rs:
+#   1. It passes -DCMAKE_OSX_ARCHITECTURES=arm64 to the vendored libjpeg-turbo;
+#      libjpeg-turbo's CMakeLists honours that to pick CPU_TYPE even on Linux,
+#      so on x86_64 it builds the ARM NEON SIMD path and fails on arm_neon.h.
+#      Shim cmake to append -DWITH_SIMD=0 (last value wins), disabling
+#      libjpeg-turbo's hand-written SIMD entirely.
+#   2. It emits `-lc++` (LLVM C++ runtime) for the C++ objects it compiles with
+#      g++, whose runtime is libstdc++. Point `-lc++` at libstdc++ so names
+#      resolve and the g++ ABI matches.
+RUN printf '#!/bin/sh\nexec /usr/bin/cmake "$@" -DWITH_SIMD=0\n' > /usr/local/bin/cmake \
+    && chmod +x /usr/local/bin/cmake \
+    && ln -s libstdc++.so.6 /usr/lib/$(uname -m)-linux-gnu/libc++.so
+
+WORKDIR /src
+
+COPY Cargo.toml Cargo.lock* ./
+RUN mkdir src && echo 'fn main() {}' > src/main.rs \
+    && cargo build --release \
+    && rm -rf src
+
+# Patch raw_preview_rs's libraw wrapper in place: the upstream crate hardcodes
+# `no_auto_bright = 1`, which disables libraw's auto-brightness and makes the
+# developed preview come out dark. Set it to 0 so the result is tonally closer
+# to the camera's embedded JPEG. The crate source is already extracted into the
+# registry by the dependency pre-build above; we edit it there and `cargo clean`
+# that one package so the final build recompiles the C++ wrapper.
+RUN set -eu; \
+    wrapper="$(find /usr/local/cargo/registry/src -type f -name 'libraw_wrapper.cpp' -path '*raw_preview_rs-*' | head -1)"; \
+    test -n "$wrapper"; \
+    sed -i 's/no_auto_bright = 1;/no_auto_bright = 0;/g' "$wrapper"; \
+    echo "patched:"; grep -n 'no_auto_bright' "$wrapper"; \
+    cargo clean --release -p raw_preview_rs
+
+COPY src ./src
+RUN touch src/main.rs && cargo build --release \
+    && strip target/release/camerarawpreviews

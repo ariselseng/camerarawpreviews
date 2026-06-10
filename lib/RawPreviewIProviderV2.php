@@ -6,7 +6,6 @@ use OCP\Files\File;
 use OCP\Files\FileInfo;
 use OCP\IImage;
 use OCP\Preview\IProviderV2;
-use OCP\Preview\IProvider2;
 
 class RawPreviewIProviderV2 extends RawPreviewBase implements IProviderV2
 {

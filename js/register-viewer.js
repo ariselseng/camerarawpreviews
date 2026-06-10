@@ -1,4 +1,4 @@
-if (OCA.Viewer) {
+if (typeof OCA !== 'undefined' && OCA.Viewer && typeof OCA.Viewer.registerHandler === 'function') {
 	const RAWViewer = {
 		name: 'RAWViewer',
 		props: {
@@ -9,7 +9,13 @@ if (OCA.Viewer) {
 			if (!this.previewPath) {
 				return createElement('div', 'Preview not available')
 			}
-			const url = OC.generateUrl(this.previewPath)
+
+			const isAbsolute = /^https?:\/\//i.test(this.previewPath)
+			const isRootRelative = this.previewPath.charAt(0) === '/'
+			const url = (isAbsolute || isRootRelative)
+				? this.previewPath
+				: (typeof OC !== 'undefined' ? OC.generateUrl(this.previewPath) : this.previewPath)
+
 			return createElement('img', {
 				attrs: {
 					src: url,
@@ -18,9 +24,16 @@ if (OCA.Viewer) {
 				},
 				on: {
 					load: () => {
-						this.doneLoading()
-					}
-				}
+						if (typeof this.doneLoading === 'function') {
+							this.doneLoading()
+						}
+					},
+					error: () => {
+						if (typeof this.doneLoading === 'function') {
+							this.doneLoading()
+						}
+					},
+				},
 			})
 		},
 	}

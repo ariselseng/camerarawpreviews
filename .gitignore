@@ -1,5 +1,6 @@
 /vendor/
+/.*
 /build/artifacts
 /build/*tar.gz
-/build/tools/perl-build/build/exiftool.bin
-/build/tools/perl-build/build/staticperl
+/build
+bin/

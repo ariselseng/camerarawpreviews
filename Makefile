@@ -39,7 +39,7 @@
 #        "build": "node node_modules/gulp-cli/bin/gulp.js"
 #    },
 
-app_name=$(notdir $(CURDIR))
+app_name=camerarawpreviews
 build_tools_directory=$(CURDIR)/build/tools
 vendor_directory=$(CURDIR)/vendor
 source_build_directory=$(CURDIR)/build/artifacts/source
@@ -47,6 +47,9 @@ source_package_name=$(source_build_directory)/$(app_name)
 appstore_build_directory=$(CURDIR)/build/artifacts/appstore
 appstore_package_name=$(appstore_build_directory)/$(app_name)
 composer=$(shell which composer 2> /dev/null)
+phpunit=$(shell which phpunit 2> /dev/null)
+phpunit_version=11
+phpunit_phar=$(build_tools_directory)/phpunit.phar
 
 all: build
 
@@ -112,26 +115,39 @@ source:
 # Builds the source package for the app store, ignores php and js tests
 .PHONY: appstore
 appstore:
-	test -s $(vendor_directory)/exiftool/exiftool/exiftool.bin
 	rm -rf $(appstore_build_directory)
-	mkdir -p $(appstore_build_directory)
-	rsync -r ../$(app_name)/ $(appstore_build_directory)/$(app_name) \
-	--exclude ".git" \
-	--exclude="build" \
-	--exclude="tests" \
-	--exclude="Makefile" \
-	--exclude="*.log" \
-	--exclude="phpunit*xml" \
-	--exclude="composer.*" \
-	--exclude="package.json" \
-	--exclude=".*" \
-	--exclude="sign-*.sh"
-	
-	docker run --rm -v $(appstore_build_directory)/$(app_name):/$(app_name) -v ~/.nextcloud/certificates:/certs nextcloud:27-apache php /usr/src/nextcloud/occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
-	tar -czf build/$(app_name)_nextcloud.tar.gz -C "$(appstore_build_directory)" $(app_name)
+	mkdir -p $(appstore_build_directory)/$(app_name)
+	# Copy only files tracked by git — nothing untracked or gitignored ends up
+	# in the release tarball. vendor/ is not in git but must ship with the app,
+	# so it is copied in explicitly afterwards.
+	# Build native CLI binaries for all supported architectures.
+	bash rs-fallback/build.sh x86_64
+	# Copy git-tracked files + vendor/ + bin/ into the staging directory.
+	git ls-files | grep -v '^rs-fallback/' | grep -v '^\.' | tar -c --files-from=- | tar -x -C $(appstore_build_directory)/$(app_name)
+	cp -r $(vendor_directory) $(appstore_build_directory)/$(app_name)/vendor
+	cp bin/rs-fallback-linux-* $(appstore_build_directory)/$(app_name)/bin/
 
-# Builds the source package for the app store, ignores php and js tests
+	docker run --rm -v $(appstore_build_directory)/$(app_name):/$(app_name):z -v ~/.nextcloud/certificates:/certs:z nextcloud:33-apache php /usr/src/nextcloud/occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
+	tar -czf build/$(app_name)_nextcloud.tar.gz -C "$(appstore_build_directory)" $(app_name)
+	openssl dgst -sha512 -sign ~/.nextcloud/certificates/camerarawpreviews.key build/camerarawpreviews_nextcloud.tar.gz | openssl base64
+
+# Runs the dependency-free PreviewExtractor unit tests (pure PHP + GD, no
+# Nextcloud or docker container required). If phpunit is not on PATH a phar is
+# fetched into build/tools.
+.PHONY: unit-tests
+unit-tests:
+ifeq (, $(phpunit))
+	@if [ ! -f $(phpunit_phar) ]; then \
+		echo "No phpunit command available, downloading PHPUnit $(phpunit_version) from the web"; \
+		mkdir -p $(build_tools_directory); \
+		curl -sSL https://phar.phpunit.de/phpunit-$(phpunit_version).phar -o $(phpunit_phar); \
+	fi
+	php $(phpunit_phar) -c phpunit.xml
+else
+	$(phpunit) -c phpunit.xml
+endif
+
+# Runs the Nextcloud integration tests inside the app container.
 .PHONY: tests
 tests:
-	test -s $(vendor_directory)/exiftool/exiftool/exiftool.bin
-	docker exec --workdir /var/www/html/apps-extra/camerarawpreviews --user www-data $(docker ps|grep nextcloud|awk '{print $1}') /usr/local/bin/phpunit9 --do-not-cache-result --stop-on-failure -v --bootstrap tests/bootstrap.php tests/
+	docker exec --workdir /var/www/html/apps-extra/camerarawpreviews --user www-data $(docker ps|grep nextcloud|grep php|awk '{print $1}') /usr/local/bin/phpunit9 --do-not-cache-result --stop-on-failure -v --bootstrap tests/bootstrap.php tests/
