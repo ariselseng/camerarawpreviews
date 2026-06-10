@@ -116,21 +116,20 @@ source:
 .PHONY: appstore
 appstore:
 	rm -rf $(appstore_build_directory)
-	mkdir -p $(appstore_build_directory)
-	rsync -r ../$(app_name)/ $(appstore_build_directory)/$(app_name) \
-	--exclude ".git" \
-	--exclude="build" \
-	--exclude="tests" \
-	--exclude="Makefile" \
-	--exclude="*.log" \
-	--exclude="phpunit*xml" \
-	--exclude="composer.*" \
-	--exclude="package.json" \
-	--exclude=".*" \
-	--exclude="sign-*.sh"
-	
-	docker run --rm -v $(appstore_build_directory)/$(app_name):/$(app_name):z -v ~/.nextcloud/certificates:/certs:z nextcloud:27-apache php /usr/src/nextcloud/occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
+	mkdir -p $(appstore_build_directory)/$(app_name)
+	# Copy only files tracked by git — nothing untracked or gitignored ends up
+	# in the release tarball. vendor/ is not in git but must ship with the app,
+	# so it is copied in explicitly afterwards.
+	# Build native CLI binaries for all supported architectures.
+	bash rs-fallback/build.sh all
+	# Copy git-tracked files + vendor/ + bin/ into the staging directory.
+	git ls-files | grep -v '^rs-fallback/' | grep -v '^\.' | tar -c --files-from=- | tar -x -C $(appstore_build_directory)/$(app_name)
+	cp -r $(vendor_directory) $(appstore_build_directory)/$(app_name)/vendor
+	cp bin/rs-fallback-linux-* $(appstore_build_directory)/$(app_name)/bin/
+
+	docker run --rm -v $(appstore_build_directory)/$(app_name):/$(app_name):z -v ~/.nextcloud/certificates:/certs:z nextcloud:33-apache php /usr/src/nextcloud/occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
 	tar -czf build/$(app_name)_nextcloud.tar.gz -C "$(appstore_build_directory)" $(app_name)
+	openssl dgst -sha512 -sign ~/.nextcloud/certificates/camerarawpreviews.key build/camerarawpreviews_nextcloud.tar.gz | openssl base64
 
 # Runs the dependency-free PreviewExtractor unit tests (pure PHP + GD, no
 # Nextcloud or docker container required). If phpunit is not on PATH a phar is

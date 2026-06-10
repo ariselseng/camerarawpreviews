@@ -1,0 +1,18 @@
+[package]
+name = "camerarawpreviews-cli"
+version = "0.1.0"
+edition = "2021"
+description = "CLI that renders a JPEG preview from a camera-RAW file via raw_preview_rs (libraw). The Nextcloud Camera RAW Previews app shells out to it as a last-resort fallback for RAWs its pure-PHP pipeline cannot decode."
+license = "GPL-3.0"
+
+[[bin]]
+name = "camerarawpreviews"
+path = "src/main.rs"
+
+[dependencies]
+raw_preview_rs = "0.1.2"
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1

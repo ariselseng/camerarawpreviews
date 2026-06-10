@@ -9,6 +9,7 @@ use OCA\CameraRawPreviews\Preview\MrwExtractor;
 use OCA\CameraRawPreviews\Preview\Support\FileReader;
 use OCA\CameraRawPreviews\Preview\Support\JpegOrienter;
 use OCA\CameraRawPreviews\Preview\Support\OrientationReader;
+use OCA\CameraRawPreviews\Preview\Support\RawCliRenderer;
 use OCA\CameraRawPreviews\Preview\TiffImagickExtractor;
 
 // Allow standalone use (e.g. the extract-preview CLI) without an autoloader.
@@ -24,6 +25,9 @@ if (!class_exists(OrientationReader::class, false)) {
 }
 if (!class_exists(JpegOrienter::class, false)) {
     require_once __DIR__ . '/Preview/Support/JpegOrienter.php';
+}
+if (!class_exists(RawCliRenderer::class, false)) {
+    require_once __DIR__ . '/Preview/Support/RawCliRenderer.php';
 }
 if (!interface_exists(FormatExtractor::class, false)) {
     require_once __DIR__ . '/Preview/FormatExtractor.php';
@@ -89,10 +93,22 @@ class PreviewExtractor
                     return $result;
                 }
             }
-            return null;
         } finally {
             $reader->close();
         }
+
+        // Last resort: hand the file to the optional libraw CLI. This only does
+        // anything when an admin has installed the camerarawpreviews binary and
+        // its path is configured; otherwise it returns null and we report no
+        // preview, exactly as before. The CLI's JPEG is already upright, so no
+        // orientation pass is applied.
+        $rendered = RawCliRenderer::renderPreview($filePath);
+        if ($rendered !== null) {
+            $method = 'libraw cli';
+            return $rendered;
+        }
+
+        return null;
     }
 
     /**
