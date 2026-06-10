@@ -39,7 +39,7 @@
 #        "build": "node node_modules/gulp-cli/bin/gulp.js"
 #    },
 
-app_name=$(notdir $(CURDIR))
+app_name=camerarawpreviews
 build_tools_directory=$(CURDIR)/build/tools
 vendor_directory=$(CURDIR)/vendor
 source_build_directory=$(CURDIR)/build/artifacts/source
@@ -121,7 +121,7 @@ appstore:
 	# in the release tarball. vendor/ is not in git but must ship with the app,
 	# so it is copied in explicitly afterwards.
 	# Build native CLI binaries for all supported architectures.
-	bash rs-fallback/build.sh all
+	bash rs-fallback/build.sh x86_64
 	# Copy git-tracked files + vendor/ + bin/ into the staging directory.
 	git ls-files | grep -v '^rs-fallback/' | grep -v '^\.' | tar -c --files-from=- | tar -x -C $(appstore_build_directory)/$(app_name)
 	cp -r $(vendor_directory) $(appstore_build_directory)/$(app_name)/vendor

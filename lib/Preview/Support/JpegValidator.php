@@ -22,6 +22,11 @@ class JpegValidator
         if (isset($info[2]) && $info[2] !== IMAGETYPE_JPEG) {
             return null;
         }
+        // Reject single-channel (grayscale) JPEGs — these are raw sensor data
+        // (e.g. Canon CRW Bayer frames), not viewable previews.
+        if (isset($info['channels']) && $info['channels'] === 1) {
+            return null;
+        }
         return [$info[0], $info[1]];
     }
 

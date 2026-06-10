@@ -5,3 +5,4 @@
 // can run anywhere PHP + GD is available.
 require_once __DIR__ . '/../lib/PreviewExtractor.php';
 require_once __DIR__ . '/../lib/Preview/Support/OrientationReader.php';
+require_once __DIR__ . '/../lib/Preview/Support/RawCliRenderer.php';

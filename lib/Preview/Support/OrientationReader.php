@@ -35,9 +35,15 @@ class OrientationReader
 
     public static function readFrom(FileReader $reader): ?int
     {
-        $header = $reader->readAt(0, 8);
+        $header = $reader->readAt(0, 14);
         if ($header === null || strlen($header) < 8) {
             return null;
+        }
+
+        // CRW (Canon CIFF) — identified by "HEAPCCDR" at offset 6.
+        // Not TIFF-based; rotation lives in the CIFF ImageInfo record.
+        if (strlen($header) >= 14 && substr($header, 6, 8) === 'HEAPCCDR') {
+            return self::readCrw($reader);
         }
 
         $byteOrder = substr($header, 0, 2);
@@ -82,6 +88,133 @@ class OrientationReader
             // 4-byte value/offset field, in the file's byte order.
             $value = self::u16(substr($entry, 8, 2), $little);
             return ($value >= 1 && $value <= 8) ? $value : null;
+        }
+
+        return null;
+    }
+
+    // -------------------------------------------------------------------------
+    // CRW / CIFF support
+    // -------------------------------------------------------------------------
+
+    /**
+     * Read the orientation from a Canon CRW (CIFF) file.
+     *
+     * CRW uses Canon's CIFF format — a hierarchical heap, NOT a TIFF container.
+     * Orientation is stored as a rotation-in-degrees value at byte offset 12
+     * within the ImageInfo binary record (tag 0x1810), which lives inside the
+     * ImageProps subdirectory (tag 0x300a) of the root heap.
+     *
+     * CIFF heap structure (recursive):
+     *   - A heap block is a flat byte array.
+     *   - Its last 4 bytes are the offset (from the start of THIS block) to the
+     *     directory that lists the records within the block.
+     *   - Each directory entry: uint16 typeCode | uint32 dataSize | uint32 offset
+     *     where offset is from the start of the enclosing heap block.
+     *   - A record whose typeCode has bits [15:14] = 0b11 is itself a heap block
+     *     (subdirectory); recurse with the record's data as the new heap block.
+     *
+     * Root heap starts at heapStart (bytes 2–5 of the file header), and its
+     * last-4-bytes pointer is at the very end of the file.
+     */
+    private static function readCrw(FileReader $reader): ?int
+    {
+        $header = $reader->readAt(0, 6);
+        if ($header === null || strlen($header) < 6) {
+            return null;
+        }
+        $little    = (substr($header, 0, 2) === 'II');
+        $heapStart = self::u32(substr($header, 2, 4), $little); // typically 26
+
+        $fileSize = $reader->size();
+
+        // Root heap: last 4 bytes of file = local offset (from heapStart) to dir.
+        $b = $reader->readAt($fileSize - 4, 4);
+        if ($b === null || strlen($b) < 4) {
+            return null;
+        }
+        $rootDirLocalOffset = self::u32($b, $little);
+        $rootDirAbs         = $heapStart + $rootDirLocalOffset;
+
+        // Find tag 0x300a (ImageProps) in the root directory.
+        // Root entries have offsets from $heapStart.
+        $entry = self::ciffFindEntry($reader, $rootDirAbs, $little, 0x300a);
+        if ($entry === null) {
+            return null;
+        }
+        [$ipsLocalOff, $ipsSize] = $entry;
+        $ipsBase = $heapStart + $ipsLocalOff; // absolute start of ImageProps block
+
+        // ImageProps is a sub-heap; its last 4 bytes = local offset to its dir.
+        $b = $reader->readAt($ipsBase + $ipsSize - 4, 4);
+        if ($b === null || strlen($b) < 4) {
+            return null;
+        }
+        $ipsDirLocalOffset = self::u32($b, $little);
+        $ipsDirAbs         = $ipsBase + $ipsDirLocalOffset;
+
+        // Find tag 0x1810 (ImageInfo) in the ImageProps directory.
+        // ImageProps entries have offsets from $ipsBase.
+        $entry = self::ciffFindEntry($reader, $ipsDirAbs, $little, 0x1810);
+        if ($entry === null) {
+            return null;
+        }
+        [$iiLocalOff] = $entry;
+        $iiAbs = $ipsBase + $iiLocalOff; // absolute start of ImageInfo binary block
+
+        // ImageInfo layout (int32 × 7, little-endian):
+        //   [0] ImageWidth  [1] ImageHeight  [2] PixelAspectRatio (float)
+        //   [3] Rotation (degrees: 0 / 90 / 180 / 270)  [4–6] …
+        $rotBytes = $reader->readAt($iiAbs + 12, 4);
+        if ($rotBytes === null || strlen($rotBytes) < 4) {
+            return null;
+        }
+        $degrees = self::u32($rotBytes, $little);
+
+        return match ($degrees) {
+            0   => 1,  // normal
+            90  => 6,  // 90° CW rotation needed to display upright
+            180 => 3,  // 180° rotation needed
+            270 => 8,  // 90° CCW (= 270° CW) rotation needed
+            default => null,
+        };
+    }
+
+    /**
+     * Walk a CIFF directory and return [localOffset, dataSize] for the first
+     * entry matching $targetTag, or null if not found.
+     *
+     * @param int $dirAbs Absolute file offset of the directory (starts with uint16 count).
+     * @return array{int,int}|null
+     */
+    private static function ciffFindEntry(
+        FileReader $reader,
+        int $dirAbs,
+        bool $little,
+        int $targetTag
+    ): ?array {
+        $countBytes = $reader->readAt($dirAbs, 2);
+        if ($countBytes === null || strlen($countBytes) < 2) {
+            return null;
+        }
+        $count = self::u16($countBytes, $little);
+        if ($count <= 0 || $count > 500) {
+            return null; // sanity guard
+        }
+
+        $entries = $reader->readAt($dirAbs + 2, $count * 10);
+        if ($entries === null || strlen($entries) < $count * 10) {
+            return null;
+        }
+
+        for ($i = 0; $i < $count; $i++) {
+            $e   = substr($entries, $i * 10, 10);
+            $tag = self::u16(substr($e, 0, 2), $little);
+            if ($tag === $targetTag) {
+                $size   = self::u32(substr($e, 2, 4), $little);
+                $offset = self::u32(substr($e, 6, 4), $little);
+                return [$offset, $size];
+            }
         }
 
         return null;
