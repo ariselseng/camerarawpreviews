@@ -7,6 +7,7 @@ use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\EventDispatcher\IEventDispatcher;
+use OCP\Files\IMimeTypeDetector;
 use OCP\AppFramework\App;
 use OCP\Util;
 
@@ -40,8 +41,7 @@ class Application extends App implements IBootstrap
 
     private function registerProvider(IRegistrationContext $context)
     {
-        $server = $this->getContainer()->getServer();
-        $mimeTypeDetector = $server->getMimeTypeDetector();
+        $mimeTypeDetector = \OCP\Server::get(IMimeTypeDetector::class);
         $mimeTypeDetector->getAllMappings(); // is really needed
 
         $mimesToDetect = [
