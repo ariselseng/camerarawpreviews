@@ -40,10 +40,36 @@ class OrientationReader
             return null;
         }
 
+        // CR3 (Canon, ISO base media file format) — 'ftyp' box carrying the
+        // 'crx ' brand. Not TIFF-based; the EXIF IFD0 (with Orientation) is a
+        // TIFF stream stored inside the moov ▸ uuid ▸ CMT1 box.
+        if (substr($header, 4, 4) === 'ftyp' && substr($header, 8, 4) === 'crx ') {
+            return self::readCr3($reader);
+        }
+
         // CRW (Canon CIFF) — identified by "HEAPCCDR" at offset 6.
         // Not TIFF-based; rotation lives in the CIFF ImageInfo record.
         if (strlen($header) >= 14 && substr($header, 6, 8) === 'HEAPCCDR') {
             return self::readCrw($reader);
+        }
+
+        // TIFF-based containers (CR2, NEF, ARW, DNG, RW2, …) — the TIFF header
+        // sits at the very start of the file.
+        return self::readTiffOrientationAt($reader, 0);
+    }
+
+    /**
+     * Read the Orientation tag (0x0112) from IFD0 of a TIFF stream whose header
+     * (II/MM byte order, magic 42, IFD0 pointer) begins at absolute file offset
+     * $base. TIFF IFD offsets are relative to the start of the stream, so $base
+     * is added to each — letting this serve both a bare TIFF file ($base = 0)
+     * and a TIFF embedded in another container (e.g. a CR3 CMT1 box).
+     */
+    private static function readTiffOrientationAt(FileReader $reader, int $base): ?int
+    {
+        $header = $reader->readAt($base, 8);
+        if ($header === null || strlen($header) < 8) {
+            return null;
         }
 
         $byteOrder = substr($header, 0, 2);
@@ -65,7 +91,7 @@ class OrientationReader
             return null;
         }
 
-        $countBytes = $reader->readAt($ifdOffset, 2);
+        $countBytes = $reader->readAt($base + $ifdOffset, 2);
         if ($countBytes === null || strlen($countBytes) < 2) {
             return null;
         }
@@ -74,7 +100,7 @@ class OrientationReader
             return null;
         }
 
-        $entries = $reader->readAt($ifdOffset + 2, $count * 12);
+        $entries = $reader->readAt($base + $ifdOffset + 2, $count * 12);
         if ($entries === null || strlen($entries) < $count * 12) {
             return null;
         }
@@ -88,6 +114,97 @@ class OrientationReader
             // 4-byte value/offset field, in the file's byte order.
             $value = self::u16(substr($entry, 8, 2), $little);
             return ($value >= 1 && $value <= 8) ? $value : null;
+        }
+
+        return null;
+    }
+
+    // -------------------------------------------------------------------------
+    // CR3 / ISO base media file format support
+    // -------------------------------------------------------------------------
+
+    /**
+     * Read the orientation from a Canon CR3 file.
+     *
+     * CR3 is an ISO base media (MP4/QuickTime-like) container, not a TIFF file.
+     * Canon stores the standard EXIF IFD0 — including the Orientation tag — as a
+     * raw little-endian TIFF stream inside the moov ▸ uuid ▸ CMT1 box. We locate
+     * that box and hand its contents to the TIFF orientation reader.
+     */
+    private static function readCr3(FileReader $reader): ?int
+    {
+        $fileSize = $reader->size();
+
+        // moov is a top-level box.
+        $moov = self::findChildBox($reader, 0, $fileSize, 'moov');
+        if ($moov === null) {
+            return null;
+        }
+
+        // The Canon metadata uuid box lives directly inside moov. Its payload
+        // begins with a 16-byte UUID, after which the CMTn child boxes follow.
+        $uuid = self::findChildBox($reader, $moov[0], $moov[1], 'uuid');
+        if ($uuid === null) {
+            return null;
+        }
+
+        // CMT1 holds the EXIF IFD0 TIFF stream.
+        $cmt1 = self::findChildBox($reader, $uuid[0] + 16, $uuid[1], 'CMT1');
+        if ($cmt1 === null) {
+            return null;
+        }
+
+        return self::readTiffOrientationAt($reader, $cmt1[0]);
+    }
+
+    /**
+     * Scan sibling ISO-BMFF boxes in [$start, $end) and return the payload range
+     * [payloadStart, payloadEnd) of the first box whose 4-char type is $type.
+     *
+     * Box layout: [uint32 size][4-char type][payload]. size covers the whole
+     * box including the 8-byte header. size == 1 means a 64-bit size follows the
+     * type; size == 0 means the box runs to $end. All values are big-endian.
+     *
+     * @return array{int,int}|null
+     */
+    private static function findChildBox(FileReader $reader, int $start, int $end, string $type): ?array
+    {
+        $pos = $start;
+        $guard = 0;
+
+        while ($pos + 8 <= $end && $guard++ < 10000) {
+            $head = $reader->readAt($pos, 8);
+            if ($head === null || strlen($head) < 8) {
+                return null;
+            }
+
+            $size = self::u32(substr($head, 0, 4), false);
+            $boxType = substr($head, 4, 4);
+            $headerLen = 8;
+
+            if ($size === 1) {
+                // 64-bit extended size follows the type.
+                $ext = $reader->readAt($pos + 8, 8);
+                if ($ext === null || strlen($ext) < 8) {
+                    return null;
+                }
+                $high = self::u32(substr($ext, 0, 4), false);
+                $low = self::u32(substr($ext, 4, 4), false);
+                $size = ($high << 32) | $low;
+                $headerLen = 16;
+            } elseif ($size === 0) {
+                $size = $end - $pos; // extends to the end of the parent
+            }
+
+            if ($size < $headerLen || $pos + $size > $end) {
+                return null; // malformed or overruns parent
+            }
+
+            if ($boxType === $type) {
+                return [$pos + $headerLen, $pos + $size];
+            }
+
+            $pos += $size;
         }
 
         return null;

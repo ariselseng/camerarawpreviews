@@ -112,16 +112,20 @@ source:
 	--exclude="../$(app_name)/*.log" \
 	--exclude="../$(app_name)/js/*.log" \
 
+# Build the rs-fallback binary only when sources are newer than the binary.
+# `find` lists every file under rs-fallback/ so any change triggers a rebuild.
+rs_fallback_sources := $(shell find rs-fallback -type f)
+bin/rs-fallback-linux-x86_64: $(rs_fallback_sources)
+	bash rs-fallback/build.sh x86_64
+
 # Builds the source package for the app store, ignores php and js tests
 .PHONY: appstore
-appstore:
+appstore: bin/rs-fallback-linux-x86_64
 	rm -rf $(appstore_build_directory)
 	mkdir -p $(appstore_build_directory)/$(app_name)
 	# Copy only files tracked by git — nothing untracked or gitignored ends up
 	# in the release tarball. vendor/ is not in git but must ship with the app,
 	# so it is copied in explicitly afterwards.
-	# Build native CLI binaries for all supported architectures.
-	bash rs-fallback/build.sh x86_64
 	# Copy git-tracked files + vendor/ + bin/ into the staging directory.
 	git ls-files | grep -v '^rs-fallback/' | grep -v '^\.' | tar -c --files-from=- | tar -x -C $(appstore_build_directory)/$(app_name)
 	cp -r $(vendor_directory) $(appstore_build_directory)/$(app_name)/vendor

@@ -81,6 +81,47 @@ class OrientationReaderTest extends TestCase
     }
 
     // ---------------------------------------------------------------------
+    // CR3 (ISO base media file format) happy paths
+    // ---------------------------------------------------------------------
+
+    public function testReadsOrientationFromCr3(): void
+    {
+        // Orientation lives in a little-endian TIFF IFD0 inside moov/uuid/CMT1.
+        $tiff = $this->buildTiff(true, [
+            [self::ORIENTATION_TAG, self::TYPE_SHORT, 1, 8],
+        ]);
+        $path = $this->writeTmp($this->buildCr3($tiff));
+
+        $this->assertSame(8, OrientationReader::read($path));
+    }
+
+    public function testReadsCr3OrientationSkippingSiblingBoxes(): void
+    {
+        // Real CR3s put several boxes (CNCV, CCTP, CTBO, free, …) before CMT1
+        // inside the uuid box; the box walker must skip them to reach CMT1.
+        $tiff = $this->buildTiff(true, [
+            [0x0100, self::TYPE_SHORT, 1, 6000],
+            [self::ORIENTATION_TAG, self::TYPE_SHORT, 1, 6],
+        ]);
+        $siblings = $this->box('CNCV', str_repeat("\x00", 30))
+            . $this->box('free', str_repeat("\x00", 8));
+        $path = $this->writeTmp($this->buildCr3($tiff, $siblings));
+
+        $this->assertSame(6, OrientationReader::read($path));
+    }
+
+    public function testReturnsNullForCr3WithoutCmt1(): void
+    {
+        // A CR3 whose uuid box carries no CMT1 must fail gracefully, not crash.
+        $uuidPayload = str_repeat("\x00", 16) . $this->box('CNCV', str_repeat("\x00", 30));
+        $cr3 = $this->box('ftyp', 'crx ' . pack('N', 1))
+            . $this->box('moov', $this->box('uuid', $uuidPayload));
+        $path = $this->writeTmp($cr3);
+
+        $this->assertNull(OrientationReader::read($path));
+    }
+
+    // ---------------------------------------------------------------------
     // Null / failure paths
     // ---------------------------------------------------------------------
 
@@ -173,6 +214,28 @@ class OrientationReaderTest extends TestCase
         $ifd .= $u32(0); // no next IFD
 
         return $header . $ifd;
+    }
+
+    /**
+     * Wrap raw big-endian ISO-BMFF box bytes: [uint32 size][4-char type][payload].
+     */
+    private function box(string $type, string $payload): string
+    {
+        return pack('N', 8 + strlen($payload)) . $type . $payload;
+    }
+
+    /**
+     * Build a minimal Canon CR3 file wrapping the given TIFF stream in the
+     * moov ▸ uuid ▸ CMT1 box path Canon uses for EXIF IFD0. Optional
+     * $uuidSiblings are extra boxes placed inside the uuid box before CMT1.
+     */
+    private function buildCr3(string $tiff, string $uuidSiblings = ''): string
+    {
+        // uuid payload: 16-byte UUID, then child boxes (siblings, then CMT1).
+        $uuidPayload = str_repeat("\x00", 16) . $uuidSiblings . $this->box('CMT1', $tiff);
+
+        return $this->box('ftyp', 'crx ' . pack('N', 1))
+            . $this->box('moov', $this->box('uuid', $uuidPayload));
     }
 
     /**
