@@ -15,6 +15,7 @@
             <file>tests/OrientationReaderTest.php</file>
             <file>tests/MrwExtractorTest.php</file>
             <file>tests/RawCliRendererTest.php</file>
+            <file>tests/NoDeprecatedServerApiTest.php</file>
         </testsuite>
     </testsuites>
     <source>

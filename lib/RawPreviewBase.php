@@ -10,7 +10,9 @@ use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\IImage;
 use OCP\Image;
+use OCP\ITempManager;
 use OCP\Lock\LockedException;
+use OCP\Server;
 use Psr\Log\LoggerInterface;
 
 class RawPreviewBase
@@ -163,7 +165,7 @@ class RawPreviewBase
         }
 
         // Encrypted or non-local storage: copy the contents to a temp file.
-        $absPath = \OC::$server->getTempManager()->getTemporaryFile();
+        $absPath = Server::get(ITempManager::class)->getTemporaryFile();
         $content = $file->fopen('r');
         file_put_contents($absPath, $content);
         $this->tmpFiles[] = $absPath;
