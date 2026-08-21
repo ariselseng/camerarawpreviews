@@ -40,7 +40,7 @@ class RawPreviewBase
      */
     public function getMimeType(): string
     {
-        return '/^((image\/x-dcraw)|(image\/x-indesign))(;+.*)*$/';
+        return '/^((image\/x-dcraw)|(image\/x-indesign)|(image\/avif))(;+.*)*$/';
     }
 
     /**
@@ -69,6 +69,10 @@ class RawPreviewBase
             return false;
         }
 
+        if (strtolower($file->getExtension()) === 'avif' && !$this->isAvifCompatible()) {
+            return false;
+        }
+
         return true;
     }
 
@@ -79,6 +83,10 @@ class RawPreviewBase
         } catch (Exception $e) {
             $this->logger->warning($e->getMessage(), ['app' => $this->appName, 'exception' => $e]);
             return null;
+        }
+
+        if (str_ends_with(strtolower($file->getName()), '.avif') && $this->isAvifCompatible()) {
+            return $this->getAVIFPreview($localPath, $maxX, $maxY);
         }
 
         try {
@@ -180,6 +188,11 @@ class RawPreviewBase
         return extension_loaded('imagick') && count(\Imagick::queryformats('TIFF')) > 0;
     }
 
+    private function isAvifCompatible(): bool
+    {
+        return extension_loaded('imagick') && count(\Imagick::queryformats('AVIF')) > 0;
+    }
+
     /**
      * Clean any generated temporary files
      */
@@ -190,5 +203,36 @@ class RawPreviewBase
         }
 
         $this->tmpFiles = [];
+    }
+
+    private function getAVIFPreview(string $imagePath, int $maxX, int $maxY): ?IImage
+    {
+        try {
+            $imagick = new \Imagick($imagePath);
+            $imagick->autoOrient();
+            $imagick->setImageFormat('webp');
+            $imagick->setImageCompressionQuality(90);
+            $image = new Image;
+            $image->loadFromData($imagick->getImageBlob());
+            $imagick->clear();
+            $imagick->destroy();
+            $image->scaleDownToFit($maxX, $maxY);
+
+
+            if (!$image->valid()) {
+                $this->logger->warning('Invalid OCP image created from AVIF: ' . $imagePath, ['app' => $this->appName]);
+                return null;
+            }
+
+            return $image;
+        } catch (\Exception $e) {
+            $this->logger->warning('Failed to process AVIF with Imagick: ' . $e->getMessage(), [
+                'app' => $this->appName,
+                'file' => $imagePath,
+            ]);
+            return null;
+        } finally {
+            $this->cleanTmpFiles();
+        }
     }
 }

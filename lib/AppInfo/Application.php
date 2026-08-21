@@ -71,10 +71,11 @@ class Application extends App implements IBootstrap
             'tif' => ['image/x-dcraw'],
             'tiff' => ['image/x-dcraw'],
             'x3f' => ['image/x-dcraw'],
+            'avif' => ['image/avif'],
         ];
 
         $mimeTypeDetector->registerTypeArray($mimesToDetect);
-        $context->registerPreviewProvider(RawPreviewIProviderV2::class, '/^((image\/x-dcraw)|(image\/x-indesign))(;+.*)*$/');
+        $context->registerPreviewProvider(RawPreviewIProviderV2::class, '/^((image\/x-dcraw)|(image\/x-indesign)|(image\/avif))(;+.*)*$/');
     }
 
     public function boot(IBootContext $context): void {

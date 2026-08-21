@@ -41,7 +41,10 @@ if (typeof OCA !== 'undefined' && OCA.Viewer && typeof OCA.Viewer.registerHandle
 	OCA.Viewer.registerHandler({
 		id: 'camerarawpreviews',
 		group: 'media',
-		mimes: ['image/x-dcraw'],
+		mimes: [
+			'image/x-dcraw',
+			'image/avif',
+		],
 		component: RAWViewer,
 	})
 }
