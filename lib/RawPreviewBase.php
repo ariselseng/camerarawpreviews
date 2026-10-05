@@ -80,10 +80,14 @@ class RawPreviewBase
             }
             $image->scaleDownToFit($maxX, $maxY);
             return $image;
-        } catch (\Throwable $e) {
-            // Also catches PHP errors (TypeError, ValueError, …) that a corrupt
-            // file can trigger, so the request still gets a plain "no preview".
+        } catch (Exception $e) {
             $this->logger->warning($e->getMessage(), ['app' => $this->appName, 'exception' => $e]);
+            return null;
+        } catch (\Error $e) {
+            // A PHP error (TypeError, ValueError, a removed Nextcloud API, …) is
+            // likely a bug rather than a bad file, so log it louder; the request
+            // still gets a plain "no preview" instead of a 500.
+            $this->logger->error($e->getMessage(), ['app' => $this->appName, 'exception' => $e]);
             return null;
         } finally {
             $this->cleanTmpFiles();

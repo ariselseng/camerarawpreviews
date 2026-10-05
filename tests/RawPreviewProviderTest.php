@@ -193,9 +193,11 @@ class RawPreviewProviderTest extends TestCase
 
     public function testThumbnailIsNullAndLoggedOnPhpError(): void
     {
-        // PHP errors are not Exceptions; they must not escape as a 500 either.
+        // PHP errors are not Exceptions; they must not escape as a 500 either,
+        // but they are logged as errors since they are likely bugs.
         $logger = $this->createMock(LoggerInterface::class);
-        $logger->expects($this->once())->method('warning');
+        $logger->expects($this->once())->method('error');
+        $logger->expects($this->never())->method('warning');
         $file = $this->createMock(File::class);
         $file->method('isEncrypted')->willReturn(true);
         $file->method('fopen')->willThrowException(new \ValueError('corrupt header'));
