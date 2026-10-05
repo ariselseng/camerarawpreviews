@@ -10,3 +10,7 @@ RUN apt-get update \
  && docker-php-ext-enable pcov \
  && apt-get purge -y --auto-remove $PHPIZE_DEPS \
  && rm -rf /var/lib/apt/lists/* /tmp/pear
+# Download cache for the RAW samples of the integration tests. `make tests`
+# mounts a named volume here, which starts out with this directory's owner.
+ENV CRP_TEST_ASSET_DIR=/var/cache/camerarawpreviews-test
+RUN mkdir -p $CRP_TEST_ASSET_DIR && chown www-data: $CRP_TEST_ASSET_DIR

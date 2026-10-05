@@ -78,11 +78,13 @@ class RawPreviewIProviderV2Test extends TestCase
 
     /**
      * Returns a local copy of the asset, downloading it on first use. The copy
-     * in the temp dir is reused across runs as long as its checksum matches.
+     * is reused as long as its checksum matches; it outlives the test
+     * container when CRP_TEST_ASSET_DIR points at a volume (see the Makefile).
      */
     private function fetchAsset(array $asset): string
     {
-        $localPath = sys_get_temp_dir() . '/' . $asset['filename'];
+        $dir = getenv('CRP_TEST_ASSET_DIR') ?: sys_get_temp_dir();
+        $localPath = $dir . '/' . $asset['filename'];
         if (file_exists($localPath) && sha1_file($localPath) === $asset['sha1']) {
             return $localPath;
         }

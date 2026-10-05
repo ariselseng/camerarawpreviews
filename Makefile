@@ -56,8 +56,9 @@ test_image=$(app_name)-test
 # with ../nextcloud/compose.yml use `make tests nc_volume=nextcloud_nc35_html`
 nc_volume=nc35_html
 # `run` arguments for a test container that has the Nextcloud instance from
-# nc_volume and the app mounted where the instance expects it, as www-data
-nc_run_args=-v $(nc_volume):/var/www/html -v $(CURDIR):/var/www/html/custom_apps/$(app_name):z --workdir /var/www/html/custom_apps/$(app_name) --user www-data
+# nc_volume and the app mounted where the instance expects it, as www-data.
+# The RAW samples the integration tests download are kept in a volume.
+nc_run_args=-v $(nc_volume):/var/www/html -v $(app_name)-test-assets:/var/cache/camerarawpreviews-test -v $(CURDIR):/var/www/html/custom_apps/$(app_name):z --workdir /var/www/html/custom_apps/$(app_name) --user www-data
 nc_phpunit=php build/tools/phpunit.phar --no-configuration --do-not-cache-result --bootstrap tests/bootstrap.php
 
 all: build
