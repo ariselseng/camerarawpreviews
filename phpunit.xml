@@ -23,6 +23,7 @@
         <include>
             <file>lib/PreviewExtractor.php</file>
             <file>lib/Preview/Support/OrientationReader.php</file>
+            <file>lib/Preview/Support/JpegOrienter.php</file>
             <file>lib/Preview/MrwExtractor.php</file>
         </include>
     </source>
