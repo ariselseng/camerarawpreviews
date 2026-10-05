@@ -180,4 +180,5 @@ test-image:
 $(phpunit_phar):
 	@echo "Downloading PHPUnit $(phpunit_version) from the web"
 	mkdir -p $(build_tools_directory)
-	curl -sSL https://phar.phpunit.de/phpunit-$(phpunit_version).phar -o $(phpunit_phar)
+	curl -fsSL https://phar.phpunit.de/phpunit-$(phpunit_version).phar -o $(phpunit_phar).tmp
+	mv $(phpunit_phar).tmp $(phpunit_phar)
