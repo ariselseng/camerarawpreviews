@@ -80,6 +80,8 @@ class RawPreviewIProviderV2Test extends TestCase
      * Returns a local copy of the asset, downloading it on first use. The copy
      * is reused as long as its checksum matches; it outlives the test
      * container when CRP_TEST_ASSET_DIR points at a volume (see the Makefile).
+     * Without network access the test is skipped rather than failed, so the
+     * rest of the suite still runs.
      */
     private function fetchAsset(array $asset): string
     {
@@ -91,7 +93,7 @@ class RawPreviewIProviderV2Test extends TestCase
 
         $content = @file_get_contents(str_replace(' ', '%20', $asset['url']));
         if ($content === false || sha1($content) !== $asset['sha1']) {
-            $this->fail('Could not download ' . $asset['url'] . ' (missing or checksum mismatch)');
+            $this->markTestSkipped('Could not download ' . $asset['url'] . ' (offline or checksum mismatch)');
         }
         file_put_contents($localPath, $content);
 
