@@ -149,13 +149,13 @@ appstore: bin/rs-fallback-linux-x86_64
 # host needs neither PHP nor GD. The app is mounted read-only;
 # --do-not-cache-result keeps phpunit from writing into it.
 .PHONY: unit-tests
-unit-tests: $(phpunit_phar) test-image
+unit-tests: $(phpunit_phar) test-image nc-volume
 	$(container_runtime) run --rm -v $(CURDIR):/$(app_name):ro,z --workdir /$(app_name) $(test_image) php build/tools/phpunit.phar -c phpunit.xml --do-not-cache-result
 
 # Runs the whole test suite, including the Nextcloud integration tests, against
 # the Nextcloud instance in nc_volume. The instance does not need to be running.
 .PHONY: tests
-tests: $(phpunit_phar) test-image
+tests: $(phpunit_phar) test-image nc-volume
 	$(container_runtime) run --rm $(nc_run_args) $(test_image) $(nc_phpunit) --stop-on-failure tests/
 
 # Runs the whole test suite like `tests` and reports line coverage of lib/: a
@@ -163,7 +163,7 @@ tests: $(phpunit_phar) test-image
 # report is written as www-data inside the container and copied out afterwards,
 # so the files on the host belong to you.
 .PHONY: coverage
-coverage: $(phpunit_phar) test-image
+coverage: $(phpunit_phar) test-image nc-volume
 	rm -rf build/coverage
 	$(container_runtime) rm -f $(app_name)-coverage > /dev/null
 	$(container_runtime) run --name $(app_name)-coverage $(nc_run_args) $(test_image) $(nc_phpunit) --coverage-filter lib --coverage-text --coverage-html /tmp/coverage tests/; \
@@ -171,6 +171,13 @@ coverage: $(phpunit_phar) test-image
 	$(container_runtime) cp $(app_name)-coverage:/tmp/coverage build/coverage; \
 	$(container_runtime) rm $(app_name)-coverage > /dev/null; \
 	exit $$status
+
+# Fails early when nc_volume does not exist; `run -v` would otherwise create
+# it empty without a word
+.PHONY: nc-volume
+nc-volume:
+	@$(container_runtime) volume inspect $(nc_volume) > /dev/null 2>&1 || \
+		{ echo "Volume $(nc_volume) not found; set nc_volume to the html volume of a Nextcloud instance" >&2; exit 1; }
 
 # Builds the test image; a no-op when tests/Containerfile is unchanged
 .PHONY: test-image
