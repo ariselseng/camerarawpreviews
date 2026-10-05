@@ -3,6 +3,7 @@
 namespace OCA\CameraRawPreviews\Tests;
 
 use OCA\CameraRawPreviews\PreviewExtractor;
+use OCA\CameraRawPreviews\Tests\Support\TiffBuilder;
 use PHPUnit\Framework\TestCase;
 
 // PreviewExtractor is dependency-free (pure PHP + GD), so the test can load it
@@ -152,11 +153,7 @@ class PreviewExtractorTest extends TestCase
         // A portrait shot: the RAW's IFD0 says "rotate 90 CW" (6) and the
         // embedded landscape JPEG carries no orientation of its own.
         $jpeg = $this->makeJpeg(320, 240);
-        $tiff = 'II' . pack('v', 42) . pack('V', 8)
-            . pack('v', 1)
-            . pack('v', 0x0112) . pack('v', 3) . pack('V', 1) . pack('v', 6) . "\x00\x00"
-            . pack('V', 0);
-        $path = $this->writeTmp($tiff . str_repeat("\x00", 2000) . $jpeg . str_repeat("\x00", 1000));
+        $path = $this->writeTmp(TiffBuilder::withOrientation(6) . str_repeat("\x00", 2000) . $jpeg . str_repeat("\x00", 1000));
 
         $result = PreviewExtractor::extractPreview($path, $method);
 

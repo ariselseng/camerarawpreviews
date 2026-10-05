@@ -3,6 +3,7 @@
 namespace OCA\CameraRawPreviews\Tests;
 
 use OCA\CameraRawPreviews\Preview\Support\OrientationReader;
+use OCA\CameraRawPreviews\Tests\Support\TiffBuilder;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -20,8 +21,8 @@ if (!class_exists(OrientationReader::class)) {
  */
 class OrientationReaderTest extends TestCase
 {
-    private const ORIENTATION_TAG = 0x0112;
-    private const TYPE_SHORT = 3;
+    private const ORIENTATION_TAG = TiffBuilder::ORIENTATION_TAG;
+    private const TYPE_SHORT = TiffBuilder::TYPE_SHORT;
 
     /** @var string[] Temp files to remove after each test. */
     private array $tmpFiles = [];
@@ -43,7 +44,7 @@ class OrientationReaderTest extends TestCase
 
     public function testReadsOrientationFromLittleEndianTiff(): void
     {
-        $path = $this->writeTmp($this->buildTiff(true, [
+        $path = $this->writeTmp(TiffBuilder::build(true, [
             [self::ORIENTATION_TAG, self::TYPE_SHORT, 1, 6],
         ]));
 
@@ -52,7 +53,7 @@ class OrientationReaderTest extends TestCase
 
     public function testReadsOrientationFromBigEndianTiff(): void
     {
-        $path = $this->writeTmp($this->buildTiff(false, [
+        $path = $this->writeTmp(TiffBuilder::build(false, [
             [self::ORIENTATION_TAG, self::TYPE_SHORT, 1, 8],
         ]));
 
@@ -61,7 +62,7 @@ class OrientationReaderTest extends TestCase
 
     public function testReadsNormalOrientationOne(): void
     {
-        $path = $this->writeTmp($this->buildTiff(true, [
+        $path = $this->writeTmp(TiffBuilder::build(true, [
             [self::ORIENTATION_TAG, self::TYPE_SHORT, 1, 1],
         ]));
 
@@ -72,7 +73,7 @@ class OrientationReaderTest extends TestCase
     {
         // ImageWidth (0x0100) and ImageLength (0x0101) precede Orientation;
         // entries must be in ascending tag order per the TIFF spec.
-        $path = $this->writeTmp($this->buildTiff(true, [
+        $path = $this->writeTmp(TiffBuilder::build(true, [
             [0x0100, self::TYPE_SHORT, 1, 4000],
             [0x0101, self::TYPE_SHORT, 1, 3000],
             [self::ORIENTATION_TAG, self::TYPE_SHORT, 1, 3],
@@ -88,7 +89,7 @@ class OrientationReaderTest extends TestCase
     public function testReadsOrientationFromCr3(): void
     {
         // Orientation lives in a little-endian TIFF IFD0 inside moov/uuid/CMT1.
-        $tiff = $this->buildTiff(true, [
+        $tiff = TiffBuilder::build(true, [
             [self::ORIENTATION_TAG, self::TYPE_SHORT, 1, 8],
         ]);
         $path = $this->writeTmp($this->buildCr3($tiff));
@@ -100,7 +101,7 @@ class OrientationReaderTest extends TestCase
     {
         // Real CR3s put several boxes (CNCV, CCTP, CTBO, free, …) before CMT1
         // inside the uuid box; the box walker must skip them to reach CMT1.
-        $tiff = $this->buildTiff(true, [
+        $tiff = TiffBuilder::build(true, [
             [0x0100, self::TYPE_SHORT, 1, 6000],
             [self::ORIENTATION_TAG, self::TYPE_SHORT, 1, 6],
         ]);
@@ -125,7 +126,7 @@ class OrientationReaderTest extends TestCase
     public function testReadsCr3WhoseMoovRunsToEndOfFile(): void
     {
         // A box size of 0 means "extends to the end of the file".
-        $tiff = $this->buildTiff(true, [
+        $tiff = TiffBuilder::build(true, [
             [self::ORIENTATION_TAG, self::TYPE_SHORT, 1, 6],
         ]);
         $uuidPayload = str_repeat("\x00", 16) . $this->box('CMT1', $tiff);
@@ -139,7 +140,7 @@ class OrientationReaderTest extends TestCase
     public function testReadsCr3AfterBoxWithExtendedSize(): void
     {
         // A box size of 1 means a 64-bit size follows the type.
-        $tiff = $this->buildTiff(true, [
+        $tiff = TiffBuilder::build(true, [
             [self::ORIENTATION_TAG, self::TYPE_SHORT, 1, 3],
         ]);
         $padding = str_repeat("\x00", 20);
@@ -199,7 +200,7 @@ class OrientationReaderTest extends TestCase
 
     public function testReturnsNullWhenOrientationTagAbsent(): void
     {
-        $path = $this->writeTmp($this->buildTiff(true, [
+        $path = $this->writeTmp(TiffBuilder::build(true, [
             [0x0100, self::TYPE_SHORT, 1, 4000],
         ]));
 
@@ -208,7 +209,7 @@ class OrientationReaderTest extends TestCase
 
     public function testReturnsNullForOutOfRangeOrientation(): void
     {
-        $path = $this->writeTmp($this->buildTiff(true, [
+        $path = $this->writeTmp(TiffBuilder::build(true, [
             [self::ORIENTATION_TAG, self::TYPE_SHORT, 1, 9],
         ]));
 
@@ -260,33 +261,6 @@ class OrientationReaderTest extends TestCase
     // ---------------------------------------------------------------------
     // Fixture helpers
     // ---------------------------------------------------------------------
-
-    /**
-     * Build a minimal single-IFD TIFF.
-     *
-     * @param bool  $little  true for little-endian (II), false for big-endian (MM)
-     * @param array $entries List of [tag, type, count, shortValue] tuples. Each
-     *                       is encoded as a 12-byte IFD entry with the value
-     *                       stored inline as a SHORT in the first 2 bytes.
-     */
-    private function buildTiff(bool $little, array $entries): string
-    {
-        $u16 = fn (int $v): string => $little ? pack('v', $v) : pack('n', $v);
-        $u32 = fn (int $v): string => $little ? pack('V', $v) : pack('N', $v);
-
-        $header = ($little ? 'II' : 'MM') . $u16(42) . $u32(8);
-
-        $ifd = $u16(count($entries));
-        foreach ($entries as [$tag, $type, $count, $value]) {
-            // 12-byte entry: tag(2) type(2) count(4) value/offset(4).
-            // SHORT value sits in the first 2 bytes of the value field; the
-            // remaining 2 bytes are padding (zero).
-            $ifd .= $u16($tag) . $u16($type) . $u32($count) . $u16($value) . "\x00\x00";
-        }
-        $ifd .= $u32(0); // no next IFD
-
-        return $header . $ifd;
-    }
 
     /**
      * Wrap raw big-endian ISO-BMFF box bytes: [uint32 size][4-char type][payload].

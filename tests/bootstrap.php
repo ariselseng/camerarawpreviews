@@ -10,5 +10,6 @@ setLocale(LC_ALL, 'C');
 setLocale(LC_CTYPE, 'C');
 
 \OC_App::loadApp('camerarawpreviews');
+require_once __DIR__ . '/Support/TiffBuilder.php';
 
 OC_Hook::clear();

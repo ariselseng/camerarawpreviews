@@ -3,6 +3,7 @@
 namespace OCA\CameraRawPreviews\Tests;
 
 use OCA\CameraRawPreviews\Preview\Support\JpegOrienter;
+use OCA\CameraRawPreviews\Tests\Support\TiffBuilder;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -129,11 +130,7 @@ class JpegOrienterTest extends TestCase
      */
     private function withExifOrientation(string $jpeg, int $orientation): string
     {
-        $tiff = 'II' . pack('v', 42) . pack('V', 8)
-            . pack('v', 1)
-            . pack('v', 0x0112) . pack('v', 3) . pack('V', 1) . pack('v', $orientation) . "\x00\x00"
-            . pack('V', 0);
-        $payload = "Exif\x00\x00" . $tiff;
+        $payload = "Exif\x00\x00" . TiffBuilder::withOrientation($orientation);
         $app1 = "\xFF\xE1" . pack('n', strlen($payload) + 2) . $payload;
 
         return "\xFF\xD8" . $app1 . substr($jpeg, 2);

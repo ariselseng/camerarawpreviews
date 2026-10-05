@@ -6,3 +6,4 @@
 require_once __DIR__ . '/../lib/PreviewExtractor.php';
 require_once __DIR__ . '/../lib/Preview/Support/OrientationReader.php';
 require_once __DIR__ . '/../lib/Preview/Support/RawCliRenderer.php';
+require_once __DIR__ . '/Support/TiffBuilder.php';
