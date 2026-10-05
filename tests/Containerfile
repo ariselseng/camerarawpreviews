@@ -1,0 +1,12 @@
+# Image the test suites run in (see `make unit-tests`, `make tests` and
+# `make coverage`): a Nextcloud image, for its PHP with GD and Imagick, plus
+# the PCOV coverage driver. The Nextcloud server itself is mounted in from the
+# instance's html volume, so the base image only has to match its PHP version.
+ARG BASE_IMAGE=docker.io/library/nextcloud:34-apache
+FROM $BASE_IMAGE
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends $PHPIZE_DEPS \
+ && pecl install pcov \
+ && docker-php-ext-enable pcov \
+ && apt-get purge -y --auto-remove $PHPIZE_DEPS \
+ && rm -rf /var/lib/apt/lists/* /tmp/pear

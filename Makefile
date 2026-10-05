@@ -50,10 +50,15 @@ composer=$(shell which composer 2> /dev/null)
 phpunit_version=11
 phpunit_phar=$(build_tools_directory)/phpunit.phar
 container_runtime=$(shell which docker 2> /dev/null || which podman 2> /dev/null)
-# Image the unit tests run in. Any Nextcloud image works: it has PHP with GD.
-php_image=docker.io/library/nextcloud:34-apache
-# Container the integration tests run in; override with `make tests nc_container=...`
-nc_container=nc35
+# Image all test suites run in, built from tests/Containerfile
+test_image=$(app_name)-test
+# html volume of the Nextcloud instance the integration tests run against;
+# with ../nextcloud/compose.yml use `make tests nc_volume=nextcloud_nc35_html`
+nc_volume=nc35_html
+# `run` arguments for a test container that has the Nextcloud instance from
+# nc_volume and the app mounted where the instance expects it, as www-data
+nc_run_args=-v $(nc_volume):/var/www/html -v $(CURDIR):/var/www/html/custom_apps/$(app_name):z --workdir /var/www/html/custom_apps/$(app_name) --user www-data
+nc_phpunit=php build/tools/phpunit.phar --no-configuration --do-not-cache-result --bootstrap tests/bootstrap.php
 
 all: build
 
@@ -139,24 +144,39 @@ appstore: bin/rs-fallback-linux-x86_64
 	tar -czf build/$(app_name)_nextcloud.tar.gz -C "$(appstore_build_directory)" $(app_name)
 	openssl dgst -sha512 -sign ~/.nextcloud/certificates/camerarawpreviews.key build/camerarawpreviews_nextcloud.tar.gz | openssl base64
 
-# Runs the dependency-free unit tests (no Nextcloud instance needed) in a
-# throwaway container, so the host needs neither PHP nor GD. The app is mounted
-# read-only; --do-not-cache-result keeps phpunit from writing into it.
+# Runs the dependency-free unit tests (no Nextcloud instance needed), so the
+# host needs neither PHP nor GD. The app is mounted read-only;
+# --do-not-cache-result keeps phpunit from writing into it.
 .PHONY: unit-tests
-unit-tests: $(phpunit_phar)
-	$(container_runtime) run --rm -v $(CURDIR):/$(app_name):ro,z --workdir /$(app_name) $(php_image) php build/tools/phpunit.phar -c phpunit.xml --do-not-cache-result
+unit-tests: $(phpunit_phar) test-image
+	$(container_runtime) run --rm -v $(CURDIR):/$(app_name):ro,z --workdir /$(app_name) $(test_image) php build/tools/phpunit.phar -c phpunit.xml --do-not-cache-result
+
+# Runs the whole test suite, including the Nextcloud integration tests, against
+# the Nextcloud instance in nc_volume. The instance does not need to be running.
+.PHONY: tests
+tests: $(phpunit_phar) test-image
+	$(container_runtime) run --rm $(nc_run_args) $(test_image) $(nc_phpunit) --stop-on-failure tests/
+
+# Runs the whole test suite like `tests` and reports line coverage of lib/: a
+# summary per class in the terminal and an HTML report in build/coverage. The
+# report is written as www-data inside the container and copied out afterwards,
+# so the files on the host belong to you.
+.PHONY: coverage
+coverage: $(phpunit_phar) test-image
+	rm -rf build/coverage
+	$(container_runtime) rm -f $(app_name)-coverage > /dev/null
+	$(container_runtime) run --name $(app_name)-coverage $(nc_run_args) $(test_image) $(nc_phpunit) --coverage-filter lib --coverage-text --coverage-html /tmp/coverage tests/; \
+	status=$$?; \
+	$(container_runtime) cp $(app_name)-coverage:/tmp/coverage build/coverage; \
+	$(container_runtime) rm $(app_name)-coverage > /dev/null; \
+	exit $$status
+
+# Builds the test image; a no-op when tests/Containerfile is unchanged
+.PHONY: test-image
+test-image:
+	$(container_runtime) build -q -t $(test_image) -f tests/Containerfile tests > /dev/null
 
 $(phpunit_phar):
 	@echo "Downloading PHPUnit $(phpunit_version) from the web"
 	mkdir -p $(build_tools_directory)
 	curl -sSL https://phar.phpunit.de/phpunit-$(phpunit_version).phar -o $(phpunit_phar)
-
-# Runs the whole test suite, including the Nextcloud integration tests, inside
-# the Nextcloud container that has the app mounted in custom_apps (see
-# ../nextcloud/compose.yml). The container is started if it is stopped. The
-# image ships no phpunit, so the phar from build/tools is used through the
-# bind mount.
-.PHONY: tests
-tests: $(phpunit_phar)
-	$(container_runtime) start $(nc_container) > /dev/null
-	$(container_runtime) exec --workdir /var/www/html/custom_apps/$(app_name) --user www-data $(nc_container) php build/tools/phpunit.phar --no-configuration --do-not-cache-result --stop-on-failure --bootstrap tests/bootstrap.php tests/
