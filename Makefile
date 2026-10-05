@@ -47,9 +47,13 @@ source_package_name=$(source_build_directory)/$(app_name)
 appstore_build_directory=$(CURDIR)/build/artifacts/appstore
 appstore_package_name=$(appstore_build_directory)/$(app_name)
 composer=$(shell which composer 2> /dev/null)
-phpunit=$(shell which phpunit 2> /dev/null)
 phpunit_version=11
 phpunit_phar=$(build_tools_directory)/phpunit.phar
+container_runtime=$(shell which docker 2> /dev/null || which podman 2> /dev/null)
+# Image the unit tests run in. Any Nextcloud image works: it has PHP with GD.
+php_image=docker.io/library/nextcloud:34-apache
+# Container the integration tests run in; override with `make tests nc_container=...`
+nc_container=nc35
 
 all: build
 
@@ -135,23 +139,24 @@ appstore: bin/rs-fallback-linux-x86_64
 	tar -czf build/$(app_name)_nextcloud.tar.gz -C "$(appstore_build_directory)" $(app_name)
 	openssl dgst -sha512 -sign ~/.nextcloud/certificates/camerarawpreviews.key build/camerarawpreviews_nextcloud.tar.gz | openssl base64
 
-# Runs the dependency-free PreviewExtractor unit tests (pure PHP + GD, no
-# Nextcloud or docker container required). If phpunit is not on PATH a phar is
-# fetched into build/tools.
+# Runs the dependency-free unit tests (no Nextcloud instance needed) in a
+# throwaway container, so the host needs neither PHP nor GD. The app is mounted
+# read-only; --do-not-cache-result keeps phpunit from writing into it.
 .PHONY: unit-tests
-unit-tests:
-ifeq (, $(phpunit))
-	@if [ ! -f $(phpunit_phar) ]; then \
-		echo "No phpunit command available, downloading PHPUnit $(phpunit_version) from the web"; \
-		mkdir -p $(build_tools_directory); \
-		curl -sSL https://phar.phpunit.de/phpunit-$(phpunit_version).phar -o $(phpunit_phar); \
-	fi
-	php $(phpunit_phar) -c phpunit.xml
-else
-	$(phpunit) -c phpunit.xml
-endif
+unit-tests: $(phpunit_phar)
+	$(container_runtime) run --rm -v $(CURDIR):/$(app_name):ro,z --workdir /$(app_name) $(php_image) php build/tools/phpunit.phar -c phpunit.xml --do-not-cache-result
 
-# Runs the Nextcloud integration tests inside the app container.
+$(phpunit_phar):
+	@echo "Downloading PHPUnit $(phpunit_version) from the web"
+	mkdir -p $(build_tools_directory)
+	curl -sSL https://phar.phpunit.de/phpunit-$(phpunit_version).phar -o $(phpunit_phar)
+
+# Runs the whole test suite, including the Nextcloud integration tests, inside
+# the Nextcloud container that has the app mounted in custom_apps (see
+# ../nextcloud/compose.yml). The container is started if it is stopped. The
+# image ships no phpunit, so the phar from build/tools is used through the
+# bind mount.
 .PHONY: tests
-tests:
-	docker exec --workdir /var/www/html/apps-extra/camerarawpreviews --user www-data $(docker ps|grep nextcloud|grep php|awk '{print $1}') /usr/local/bin/phpunit9 --do-not-cache-result --stop-on-failure -v --bootstrap tests/bootstrap.php tests/
+tests: $(phpunit_phar)
+	$(container_runtime) start $(nc_container) > /dev/null
+	$(container_runtime) exec --workdir /var/www/html/custom_apps/$(app_name) --user www-data $(nc_container) php build/tools/phpunit.phar --no-configuration --do-not-cache-result --stop-on-failure --bootstrap tests/bootstrap.php tests/
