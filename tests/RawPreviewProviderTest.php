@@ -86,6 +86,31 @@ class RawPreviewProviderTest extends TestCase
         $this->assertTrue($this->provider()->isAvailable($file));
     }
 
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function tiffExtensions(): array
+    {
+        return ['tif' => ['scan.tif'], 'tiff' => ['scan.TIFF']];
+    }
+
+    #[DataProvider('tiffExtensions')]
+    public function testTiffIsNotAvailableWithoutImagick(string $fileName): void
+    {
+        // Plain TIFFs can only be rendered by Imagick.
+        $file = $this->createMock(FileInfo::class);
+        $file->method('getSize')->willReturn(1024);
+        $file->method('getExtension')->willReturn(pathinfo($fileName, PATHINFO_EXTENSION));
+        $provider = new class($this->createMock(LoggerInterface::class)) extends RawPreviewIProviderV2 {
+            protected function isTiffCompatible(): bool
+            {
+                return false;
+            }
+        };
+
+        $this->assertFalse($provider->isAvailable($file));
+    }
+
     public function testThumbnailFromEncryptedFileIsCopiedAndScaled(): void
     {
         // Encrypted (or non-local) storage has no local path, so the provider

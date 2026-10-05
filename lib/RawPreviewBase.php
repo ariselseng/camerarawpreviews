@@ -51,7 +51,8 @@ class RawPreviewBase
             return false;
         }
 
-        if (strtolower($file->getExtension()) === 'tiff' && !$this->isTiffCompatible()) {
+        $extension = strtolower($file->getExtension());
+        if (($extension === 'tif' || $extension === 'tiff') && !$this->isTiffCompatible()) {
             return false;
         }
 
@@ -144,7 +145,7 @@ class RawPreviewBase
     /**
      * @return bool
      */
-    private function isTiffCompatible(): bool
+    protected function isTiffCompatible(): bool
     {
         return extension_loaded('imagick') && count(\Imagick::queryformats('TIFF')) > 0;
     }
