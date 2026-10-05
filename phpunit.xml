@@ -13,6 +13,7 @@
         <testsuite name="unit">
             <file>tests/PreviewExtractorTest.php</file>
             <file>tests/OrientationReaderTest.php</file>
+            <file>tests/JpegOrienterTest.php</file>
             <file>tests/MrwExtractorTest.php</file>
             <file>tests/RawCliRendererTest.php</file>
             <file>tests/NoDeprecatedServerApiTest.php</file>

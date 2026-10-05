@@ -3,6 +3,7 @@
 namespace OCA\CameraRawPreviews\Tests;
 
 use OCA\CameraRawPreviews\Preview\Support\OrientationReader;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 // OrientationReader is dependency-free (pure PHP TIFF-IFD parsing). Load it
@@ -117,6 +118,77 @@ class OrientationReaderTest extends TestCase
         $cr3 = $this->box('ftyp', 'crx ' . pack('N', 1))
             . $this->box('moov', $this->box('uuid', $uuidPayload));
         $path = $this->writeTmp($cr3);
+
+        $this->assertNull(OrientationReader::read($path));
+    }
+
+    public function testReadsCr3WhoseMoovRunsToEndOfFile(): void
+    {
+        // A box size of 0 means "extends to the end of the file".
+        $tiff = $this->buildTiff(true, [
+            [self::ORIENTATION_TAG, self::TYPE_SHORT, 1, 6],
+        ]);
+        $uuidPayload = str_repeat("\x00", 16) . $this->box('CMT1', $tiff);
+        $cr3 = $this->box('ftyp', 'crx ' . pack('N', 1))
+            . pack('N', 0) . 'moov' . $this->box('uuid', $uuidPayload);
+        $path = $this->writeTmp($cr3);
+
+        $this->assertSame(6, OrientationReader::read($path));
+    }
+
+    public function testReadsCr3AfterBoxWithExtendedSize(): void
+    {
+        // A box size of 1 means a 64-bit size follows the type.
+        $tiff = $this->buildTiff(true, [
+            [self::ORIENTATION_TAG, self::TYPE_SHORT, 1, 3],
+        ]);
+        $padding = str_repeat("\x00", 20);
+        $extended = pack('N', 1) . 'free' . pack('J', 16 + strlen($padding)) . $padding;
+        $path = $this->writeTmp($this->box('ftyp', 'crx ' . pack('N', 1)) . $extended
+            . $this->box('moov', $this->box('uuid', str_repeat("\x00", 16) . $this->box('CMT1', $tiff))));
+
+        $this->assertSame(3, OrientationReader::read($path));
+    }
+
+    public function testReturnsNullForCr3BoxOverrunningFile(): void
+    {
+        $cr3 = $this->box('ftyp', 'crx ' . pack('N', 1)) . pack('N', 4096) . 'moov' . str_repeat("\x00", 16);
+        $path = $this->writeTmp($cr3);
+
+        $this->assertNull(OrientationReader::read($path));
+    }
+
+    // ---------------------------------------------------------------------
+    // CRW (Canon CIFF)
+    // ---------------------------------------------------------------------
+
+    /**
+     * @return array<string, array{int, int|null}> CIFF rotation in degrees,
+     *         expected EXIF orientation
+     */
+    public static function crwRotations(): array
+    {
+        return [
+            '0 degrees' => [0, 1],
+            '90 degrees' => [90, 6],
+            '180 degrees' => [180, 3],
+            '270 degrees' => [270, 8],
+            'not a right angle' => [45, null],
+        ];
+    }
+
+    #[DataProvider('crwRotations')]
+    public function testReadsOrientationFromCrw(int $degrees, ?int $expected): void
+    {
+        $path = $this->writeTmp($this->buildCrw($degrees));
+
+        $this->assertSame($expected, OrientationReader::read($path));
+    }
+
+    public function testReturnsNullForCrwWithoutImageProps(): void
+    {
+        // The root directory lists only an unrelated record.
+        $path = $this->writeTmp($this->buildCrw(90, 0x2005));
 
         $this->assertNull(OrientationReader::read($path));
     }
@@ -236,6 +308,36 @@ class OrientationReaderTest extends TestCase
 
         return $this->box('ftyp', 'crx ' . pack('N', 1))
             . $this->box('moov', $this->box('uuid', $uuidPayload));
+    }
+
+    /**
+     * Build a minimal little-endian Canon CRW (CIFF) file: the root heap holds
+     * an ImageProps sub-heap (tag 0x300a) whose directory points at an
+     * ImageInfo record (tag 0x1810) carrying the rotation at byte 12.
+     *
+     * Every heap ends with the offset of its directory, relative to the start
+     * of the heap; directory entries are tag(2) size(4) offset(4).
+     *
+     * @param int $imagePropsTag Tag the root directory lists the sub-heap under;
+     *                           anything but 0x300a hides it.
+     */
+    private function buildCrw(int $degrees, int $imagePropsTag = 0x300a): string
+    {
+        $entry = fn (int $tag, int $size, int $offset): string => pack('v', $tag) . pack('V', $size) . pack('V', $offset);
+
+        // ImageInfo: width, height, pixel aspect ratio, rotation, 3 more int32s.
+        $imageInfo = pack('V', 3000) . pack('V', 2000) . pack('V', 0) . pack('V', $degrees) . str_repeat("\x00", 12);
+        $imageProps = $imageInfo
+            . pack('v', 1) . $entry(0x1810, strlen($imageInfo), 0)
+            . pack('V', strlen($imageInfo));
+
+        $heapStart = 26;
+        $header = 'II' . pack('V', $heapStart) . 'HEAPCCDR' . str_repeat("\x00", $heapStart - 14);
+        $rootHeap = $imageProps
+            . pack('v', 1) . $entry($imagePropsTag, strlen($imageProps), 0)
+            . pack('V', strlen($imageProps));
+
+        return $header . $rootHeap;
     }
 
     /**

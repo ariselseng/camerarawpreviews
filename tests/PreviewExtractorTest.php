@@ -144,6 +144,28 @@ class PreviewExtractorTest extends TestCase
     }
 
     // ---------------------------------------------------------------------
+    // Orientation
+    // ---------------------------------------------------------------------
+
+    public function testRotatesEmbeddedJpegByContainerOrientation(): void
+    {
+        // A portrait shot: the RAW's IFD0 says "rotate 90 CW" (6) and the
+        // embedded landscape JPEG carries no orientation of its own.
+        $jpeg = $this->makeJpeg(320, 240);
+        $tiff = 'II' . pack('v', 42) . pack('V', 8)
+            . pack('v', 1)
+            . pack('v', 0x0112) . pack('v', 3) . pack('V', 1) . pack('v', 6) . "\x00\x00"
+            . pack('V', 0);
+        $path = $this->writeTmp($tiff . str_repeat("\x00", 2000) . $jpeg . str_repeat("\x00", 1000));
+
+        $result = PreviewExtractor::extractPreview($path, $method);
+
+        $this->assertNotNull($result);
+        $this->assertSame('embedded JPEG', $method);
+        $this->assertDimensions(240, 320, $result);
+    }
+
+    // ---------------------------------------------------------------------
     // InDesign page-image extraction
     // ---------------------------------------------------------------------
 
