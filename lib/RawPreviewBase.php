@@ -21,14 +21,6 @@ class RawPreviewBase
     protected string $appName;
     protected array $tmpFiles = [];
 
-    /**
-     * One-entry cache so the extraction done by {@see isAvailable()} can be
-     * reused by {@see getThumbnailInternal()} for the same local file, instead
-     * of decoding/rendering the preview twice. Keyed by local path.
-     */
-    private ?string $cachedPath = null;
-    private ?string $cachedJpeg = null;
-
     public function __construct(LoggerInterface $logger)
     {
         $this->logger = $logger;
@@ -44,17 +36,11 @@ class RawPreviewBase
     }
 
     /**
-     * Report whether this provider can actually produce a preview for $file.
+     * Report whether this provider may be able to produce a preview for $file.
      *
-     * Beyond the cheap guards (non-empty, and Imagick present for plain TIFFs),
-     * we genuinely try to extract a preview so Nextcloud is not told a preview
-     * exists only for getThumbnail() to later return null. The extraction is
-     * cached and reused by getThumbnailInternal(), so this costs nothing extra.
-     *
-     * The deep check only runs when the bytes are reachable cheaply (local,
-     * unencrypted storage). For external/encrypted storage we avoid downloading
-     * the file just to probe it and optimistically report available, letting
-     * getThumbnail() do the real work.
+     * Only cheap guards run here (non-empty, and Imagick present for plain
+     * TIFFs); the file is never read. getThumbnail() does the real work and
+     * returns null if no preview can be extracted.
      *
      * @param FileInfo $file
      * @return bool
@@ -86,7 +72,7 @@ class RawPreviewBase
             // InDesign, Minolta MRW, and the Imagick TIFF fallback) and returns
             // an upright JPEG — orientation is already baked in for us — so the
             // provider only has to write, load and scale a single image.
-            $jpegData = $this->extractPreviewCached($localPath);
+            $jpegData = PreviewExtractor::extractPreview($localPath);
             if ($jpegData === null) {
                 throw new Exception('Unable to extract valid preview data from RAW file');
             }
@@ -115,26 +101,9 @@ class RawPreviewBase
     }
 
     /**
-     * Extract a preview JPEG, reusing the last result if the same local path is
-     * requested again (e.g. isAvailable() then getThumbnail() on one file).
-     *
-     * @param string $localPath
-     * @return string|null JPEG bytes, or null if no preview could be produced.
-     */
-    private function extractPreviewCached(string $localPath): ?string
-    {
-        if ($this->cachedPath !== $localPath) {
-            $this->cachedPath = $localPath;
-            $this->cachedJpeg = PreviewExtractor::extractPreview($localPath);
-        }
-        return $this->cachedJpeg;
-    }
-
-    /**
      * Return a readable local path for $file when it can be obtained without
-     * copying — i.e. on local, unencrypted storage. Returns null otherwise (no
-     * temp file is created and no state is mutated), so isAvailable() can probe
-     * cheaply and skip the deep check for external/encrypted storage.
+     * copying — i.e. on local, unencrypted storage. Returns null otherwise, in
+     * which case the caller has to copy the contents to a temp file.
      *
      * @param FileInfo $file
      * @return string|null

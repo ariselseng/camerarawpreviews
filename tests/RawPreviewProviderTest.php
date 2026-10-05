@@ -6,6 +6,7 @@ use OCA\CameraRawPreviews\RawPreviewIProviderV2;
 use OCP\Files\File;
 use OCP\Files\FileInfo;
 use OCP\Files\IMimeTypeDetector;
+use OCP\Files\Storage\IStorage;
 use OCP\IImage;
 use OCP\IPreview;
 use OCP\Lock\LockedException;
@@ -99,6 +100,28 @@ class RawPreviewProviderTest extends TestCase
         $this->assertSame([100, 75], [$image->width(), $image->height()]);
     }
 
+    public function testThumbnailReflectsFileOverwrittenAtSamePath(): void
+    {
+        // Nextcloud reuses one provider instance for the whole process, e.g.
+        // through `occ preview:generate-all`, so nothing may be remembered
+        // between files that share a path.
+        $path = tempnam(sys_get_temp_dir(), 'crp_provider_');
+        $file = $this->localFile($path);
+        $provider = $this->provider();
+
+        try {
+            file_put_contents($path, $this->makeJpeg(400, 300));
+            $landscape = $provider->getThumbnail($file, 100, 100);
+            file_put_contents($path, $this->makeJpeg(300, 400));
+            $portrait = $provider->getThumbnail($file, 100, 100);
+        } finally {
+            unlink($path);
+        }
+
+        $this->assertSame([100, 75], [$landscape->width(), $landscape->height()]);
+        $this->assertSame([75, 100], [$portrait->width(), $portrait->height()]);
+    }
+
     public function testThumbnailIsNullAndLoggedWhenNoPreviewCanBeExtracted(): void
     {
         $logger = $this->createMock(LoggerInterface::class);
@@ -141,6 +164,22 @@ class RawPreviewProviderTest extends TestCase
         $file = $this->createMock(File::class);
         $file->method('isEncrypted')->willReturn(true);
         $file->method('fopen')->willReturn($stream);
+        return $file;
+    }
+
+    /**
+     * A file on local storage, read in place from $path.
+     */
+    private function localFile(string $path): File
+    {
+        $storage = $this->createMock(IStorage::class);
+        $storage->method('isLocal')->willReturn(true);
+        $storage->method('getLocalFile')->willReturn($path);
+
+        $file = $this->createMock(File::class);
+        $file->method('isEncrypted')->willReturn(false);
+        $file->method('getStorage')->willReturn($storage);
+        $file->method('getInternalPath')->willReturn('files/photo.CR2');
         return $file;
     }
 
