@@ -62,41 +62,30 @@ class RawPreviewBase
     {
         try {
             $localPath = $this->getLocalFile($file);
-        } catch (Exception $e) {
-            $this->logger->warning($e->getMessage(), ['app' => $this->appName, 'exception' => $e]);
-            return null;
-        }
 
-        try {
             // PreviewExtractor handles every supported format (embedded-JPEG RAW,
             // InDesign, Minolta MRW, and the Imagick TIFF fallback) and returns
             // an upright JPEG — orientation is already baked in for us — so the
-            // provider only has to write, load and scale a single image.
+            // provider only has to load and scale a single image.
             $jpegData = PreviewExtractor::extractPreview($localPath);
             if ($jpegData === null) {
                 throw new Exception('Unable to extract valid preview data from RAW file');
             }
 
-            // Save extracted JPEG to a temporary file
-            $previewImageTmpPath = sys_get_temp_dir() . '/' . md5($localPath . uniqid()) . '.jpg';
-            $this->tmpFiles[] = $previewImageTmpPath;
-            file_put_contents($previewImageTmpPath, $jpegData);
-
             $image = new Image;
-            $image->loadFromFile($previewImageTmpPath);
-            $image->scaleDownToFit($maxX, $maxY);
-            $this->cleanTmpFiles();
-
-            //check if image object is valid
+            $image->loadFromData($jpegData);
             if (!$image->valid()) {
                 return null;
             }
+            $image->scaleDownToFit($maxX, $maxY);
             return $image;
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
+            // Also catches PHP errors (TypeError, ValueError, …) that a corrupt
+            // file can trigger, so the request still gets a plain "no preview".
             $this->logger->warning($e->getMessage(), ['app' => $this->appName, 'exception' => $e]);
-
-            $this->cleanTmpFiles();
             return null;
+        } finally {
+            $this->cleanTmpFiles();
         }
     }
 
@@ -135,9 +124,20 @@ class RawPreviewBase
 
         // Encrypted or non-local storage: copy the contents to a temp file.
         $absPath = Server::get(ITempManager::class)->getTemporaryFile();
-        $content = $file->fopen('r');
-        file_put_contents($absPath, $content);
+        if ($absPath === false) {
+            throw new Exception('Unable to create a temporary file');
+        }
         $this->tmpFiles[] = $absPath;
+
+        $stream = $file->fopen('r');
+        if ($stream === false) {
+            throw new Exception('Unable to open ' . $file->getName());
+        }
+        try {
+            file_put_contents($absPath, $stream);
+        } finally {
+            fclose($stream);
+        }
         return $absPath;
     }
 

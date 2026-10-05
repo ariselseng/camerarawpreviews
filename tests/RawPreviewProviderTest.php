@@ -143,6 +143,40 @@ class RawPreviewProviderTest extends TestCase
         $this->assertNull($this->provider($logger)->getThumbnail($file, 100, 100));
     }
 
+    public function testThumbnailIsNullAndLoggedWhenFileCannotBeOpened(): void
+    {
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())->method('warning')->with($this->stringContains('Unable to open'));
+        $file = $this->createMock(File::class);
+        $file->method('isEncrypted')->willReturn(true);
+        $file->method('fopen')->willReturn(false);
+
+        $this->assertNull($this->provider($logger)->getThumbnail($file, 100, 100));
+    }
+
+    public function testThumbnailIsNullAndLoggedOnPhpError(): void
+    {
+        // PHP errors are not Exceptions; they must not escape as a 500 either.
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())->method('warning');
+        $file = $this->createMock(File::class);
+        $file->method('isEncrypted')->willReturn(true);
+        $file->method('fopen')->willThrowException(new \ValueError('corrupt header'));
+
+        $this->assertNull($this->provider($logger)->getThumbnail($file, 100, 100));
+    }
+
+    public function testStreamIsClosedAfterCopy(): void
+    {
+        // On object storage an open stream holds a connection.
+        $file = $this->streamedFile($this->makeJpeg(40, 30));
+        $stream = $file->fopen('r');
+
+        $this->provider()->getThumbnail($file, 100, 100);
+
+        $this->assertFalse(is_resource($stream));
+    }
+
     // ---------------------------------------------------------------------
     // Fixture helpers
     // ---------------------------------------------------------------------
