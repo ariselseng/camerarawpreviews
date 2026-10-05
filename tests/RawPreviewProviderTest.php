@@ -179,6 +179,18 @@ class RawPreviewProviderTest extends TestCase
         $this->assertNull($this->provider($logger)->getThumbnail($file, 100, 100));
     }
 
+    public function testThumbnailIsNullAndLoggedWhenCopyIsIncomplete(): void
+    {
+        // A stream that breaks off early must not pass a truncated file on.
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())->method('warning')->with($this->stringContains('Unable to copy'));
+        $contents = str_repeat("\x00", 1024) . $this->makeJpeg(400, 300);
+        $file = $this->streamedFile($contents);
+        $file->method('getSize')->willReturn(strlen($contents) * 2);
+
+        $this->assertNull($this->provider($logger)->getThumbnail($file, 100, 100));
+    }
+
     public function testThumbnailIsNullAndLoggedOnPhpError(): void
     {
         // PHP errors are not Exceptions; they must not escape as a 500 either.

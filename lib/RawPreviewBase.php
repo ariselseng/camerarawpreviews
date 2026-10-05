@@ -135,9 +135,12 @@ class RawPreviewBase
             throw new Exception('Unable to open ' . $file->getName());
         }
         try {
-            file_put_contents($absPath, $stream);
+            $written = file_put_contents($absPath, $stream);
         } finally {
             fclose($stream);
+        }
+        if ($written === false || $written < $file->getSize()) {
+            throw new Exception('Unable to copy ' . $file->getName() . ' to a temporary file');
         }
         return $absPath;
     }
