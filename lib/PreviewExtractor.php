@@ -5,9 +5,11 @@ namespace OCA\CameraRawPreviews;
 use OCA\CameraRawPreviews\Preview\EmbeddedJpegExtractor;
 use OCA\CameraRawPreviews\Preview\FormatExtractor;
 use OCA\CameraRawPreviews\Preview\InDesignExtractor;
+use OCA\CameraRawPreviews\Preview\JxlPreviewExtractor;
 use OCA\CameraRawPreviews\Preview\MrwExtractor;
 use OCA\CameraRawPreviews\Preview\Support\FileReader;
 use OCA\CameraRawPreviews\Preview\Support\JpegOrienter;
+use OCA\CameraRawPreviews\Preview\Support\JxlConverter;
 use OCA\CameraRawPreviews\Preview\Support\OrientationReader;
 use OCA\CameraRawPreviews\Preview\Support\RawCliRenderer;
 use OCA\CameraRawPreviews\Preview\TiffImagickExtractor;
@@ -26,6 +28,9 @@ if (!class_exists(OrientationReader::class, false)) {
 if (!class_exists(JpegOrienter::class, false)) {
     require_once __DIR__ . '/Preview/Support/JpegOrienter.php';
 }
+if (!class_exists(JxlConverter::class, false)) {
+    require_once __DIR__ . '/Preview/Support/JxlConverter.php';
+}
 if (!class_exists(RawCliRenderer::class, false)) {
     require_once __DIR__ . '/Preview/Support/RawCliRenderer.php';
 }
@@ -41,6 +46,9 @@ if (!class_exists(MrwExtractor::class, false)) {
 if (!class_exists(EmbeddedJpegExtractor::class, false)) {
     require_once __DIR__ . '/Preview/EmbeddedJpegExtractor.php';
 }
+if (!class_exists(JxlPreviewExtractor::class, false)) {
+    require_once __DIR__ . '/Preview/JxlPreviewExtractor.php';
+}
 if (!class_exists(TiffImagickExtractor::class, false)) {
     require_once __DIR__ . '/Preview/TiffImagickExtractor.php';
 }
@@ -52,8 +60,10 @@ if (!class_exists(TiffImagickExtractor::class, false)) {
  * in priority order, returning the first non-null result. Adding a new format
  * is a matter of writing a FormatExtractor and listing it in {@see extractors()}.
  *
- * No external command-line tools are used; the only optional dependency is
- * Imagick, needed solely by the TIFF fallback.
+ * The pure-PHP extractors need no external tools. Two optional helpers may be
+ * invoked: Imagick for the TIFF fallback, and the bundled camerarawpreviews
+ * binary to convert an embedded JPEG XL preview. Both are optional; without
+ * them the corresponding strategy is simply skipped.
  */
 class PreviewExtractor
 {
@@ -117,6 +127,9 @@ class PreviewExtractor
      * Order matters: InDesign and MRW are checked before the generic JPEG scan
      * because their previews are invisible to a raw FF-D8 scan (InDesign hides
      * it base64-encoded inside XMP; Minolta MRW clobbers the SOI marker byte).
+     * The JXL extractor runs before the generic JPEG scan because it needs to
+     * compare its candidate against the best embedded JPEG and win only when it
+     * is larger; when it declines, the JPEG scan returns the JPEG unchanged.
      * The Imagick TIFF render is the last-resort fallback for TIFF-based files
      * that carry no decodable embedded JPEG.
      *
@@ -127,6 +140,7 @@ class PreviewExtractor
         return [
             new InDesignExtractor(),
             new MrwExtractor(),
+            new JxlPreviewExtractor(),
             new EmbeddedJpegExtractor(),
             new TiffImagickExtractor(),
         ];

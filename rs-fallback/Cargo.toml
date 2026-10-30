@@ -12,6 +12,8 @@ path = "src/main.rs"
 [dependencies]
 raw_preview_rs = "0.1.2"
 tempfile = "3"
+jxl-oxide = { version = "0.12.6", features = ["moxcms"] }
+jpeg-encoder = "0.7.1"
 
 [profile.release]
 lto = true

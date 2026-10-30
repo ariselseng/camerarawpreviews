@@ -56,9 +56,11 @@ class PreviewExtractorCLI
 
         // Show results
         $jpegSize = strlen($jpegData);
+        $dimensions = @getimagesizefromstring($jpegData);
         $this->success("✓ Extraction successful");
         $this->info("  Method: " . ($method ?? 'unknown'));
         $this->info("  JPEG size: " . $this->formatBytes($jpegSize));
+        $this->info("  Dimensions: " . ($dimensions === false ? 'unknown' : $dimensions[0] . 'x' . $dimensions[1]));
         $this->info("  Time: " . round($elapsed * 1000, 2) . "ms");
         $this->info("  Valid: " . ($this->isValidJpeg($jpegData) ? 'YES' : 'NO'));
         $this->info("");
@@ -94,8 +96,8 @@ class PreviewExtractorCLI
         echo "  RAW files that show no thumbnail in Nextcloud.\n";
         echo "\n";
         echo "  On success it prints the extractor used (Method), the JPEG size and\n";
-        echo "  whether the result decodes, then writes the preview to disk. On\n";
-        echo "  failure it reports that no preview could be extracted.\n";
+        echo "  dimensions, and whether the result decodes, then writes the preview\n";
+        echo "  to disk. On failure it reports that no preview could be extracted.\n";
         echo "\n";
         echo "ARGUMENTS:\n";
         echo "  <raw-file>      Path to the RAW/image file to inspect (required)\n";

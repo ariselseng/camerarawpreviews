@@ -12,6 +12,7 @@
         -->
         <testsuite name="unit">
             <file>tests/PreviewExtractorTest.php</file>
+            <file>tests/JxlPreviewExtractorTest.php</file>
             <file>tests/OrientationReaderTest.php</file>
             <file>tests/JpegOrienterTest.php</file>
             <file>tests/MrwExtractorTest.php</file>
@@ -22,6 +23,8 @@
     <source>
         <include>
             <file>lib/PreviewExtractor.php</file>
+            <file>lib/Preview/JxlPreviewExtractor.php</file>
+            <file>lib/Preview/Support/JxlConverter.php</file>
             <file>lib/Preview/Support/OrientationReader.php</file>
             <file>lib/Preview/Support/JpegOrienter.php</file>
             <file>lib/Preview/MrwExtractor.php</file>

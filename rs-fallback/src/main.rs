@@ -5,9 +5,16 @@
 //!
 //! ## Usage
 //!   camerarawpreviews <input>
+//!   camerarawpreviews --jxl <input.jxl>
 //!
-//! Reads <input> from disk, decodes it, and writes the JPEG preview to stdout.
-//! EXIF orientation is already baked in by libraw, so callers need not rotate.
+//! `<input>` reads a camera-RAW file from disk, decodes it, and writes the JPEG
+//! preview to stdout. EXIF orientation is already baked in by libraw, so callers
+//! need not rotate.
+//!
+//! `--jxl <input.jxl>` decodes an embedded JPEG XL preview (bare codestream or
+//! container), converts it to sRGB, caps the long edge at 4096 px and writes a
+//! baseline JPEG to stdout. The PHP app uses this for DNG/TIFF previews whose
+//! JXL image is larger than the best embedded JPEG.
 //!
 //! Exit codes:
 //!   0  success — JPEG written to stdout
@@ -51,7 +58,31 @@ fn main() {
         std::process::exit(0);
     }
 
+    // `--jxl <path>` / `--jxl=<path>`: convert an embedded JPEG XL preview to
+    // JPEG. Kept separate from the libraw renderer so neither path can regress
+    // the other.
+    if args.get(1).map(String::as_str) == Some("--jxl") {
+        match args.get(2) {
+            Some(path) if !path.is_empty() => std::process::exit(run_jxl(path)),
+            _ => {
+                eprintln!("usage: {} --jxl <input-jxl-file>", program_name(&args));
+                std::process::exit(EXIT_INTERNAL);
+            }
+        }
+    }
+    if let Some(path) = args.get(1).and_then(|a| a.strip_prefix("--jxl=")) {
+        if path.is_empty() {
+            eprintln!("usage: {} --jxl <input-jxl-file>", program_name(&args));
+            std::process::exit(EXIT_INTERNAL);
+        }
+        std::process::exit(run_jxl(path));
+    }
+
     std::process::exit(run_cli(&args));
+}
+
+fn program_name(args: &[String]) -> &str {
+    args.first().map(String::as_str).unwrap_or("camerarawpreviews")
 }
 
 /// Top-level CLI: `<bin> <input>` → JPEG bytes on stdout.
@@ -89,6 +120,142 @@ fn run_cli(args: &[String]) -> i32 {
             EXIT_INTERNAL
         }
     }
+}
+
+/// `--jxl <path>`: decode an embedded JPEG XL preview and write JPEG to stdout.
+fn run_jxl(input: &str) -> i32 {
+    match convert_jxl(input) {
+        Ok(jpeg) => {
+            if let Err(e) = std::io::stdout().write_all(&jpeg) {
+                eprintln!("write stdout: {e}");
+                return EXIT_INTERNAL;
+            }
+            0
+        }
+        Err(msg) => {
+            eprintln!("{msg}");
+            EXIT_UNPROCESSABLE
+        }
+    }
+}
+
+/// Long-edge cap for converted previews. Larger JXL previews are downscaled,
+/// smaller ones are never upscaled.
+const MAX_PREVIEW_EDGE: u32 = 4096;
+/// JPEG quality for the converted preview.
+const JPEG_QUALITY: u8 = 90;
+
+/// Decode a bare JPEG XL codestream or container to an sRGB JPEG.
+fn convert_jxl(input: &str) -> Result<Vec<u8>, String> {
+    use jpeg_encoder::{ColorType, Encoder};
+    use jxl_oxide::{EnumColourEncoding, JxlImage, RenderingIntent};
+
+    let mut image =
+        JxlImage::open_with_defaults(input).map_err(|e| format!("decode JXL header: {e}"))?;
+    image.request_color_encoding(EnumColourEncoding::srgb(RenderingIntent::Perceptual));
+
+    let render = image
+        .render_frame(0)
+        .map_err(|e| format!("render JXL frame: {e}"))?;
+    let mut stream = render.stream_no_alpha();
+    let width = stream.width();
+    let height = stream.height();
+    let channels = stream.channels();
+    if width == 0 || height == 0 || channels == 0 {
+        return Err("decoded JXL image has no pixels".to_string());
+    }
+
+    let samples_len = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|n| n.checked_mul(channels as usize))
+        .ok_or_else(|| "decoded JXL dimensions overflow".to_string())?;
+    let mut samples = vec![0u8; samples_len];
+    let written = stream.write_to_buffer::<u8>(&mut samples);
+    if written != samples_len {
+        return Err(format!(
+            "short JXL decode: wrote {written} of {samples_len} samples"
+        ));
+    }
+
+    let rgb = to_rgb(&samples, width, height, channels)?;
+    let (out_w, out_h, out_rgb) = if width > MAX_PREVIEW_EDGE || height > MAX_PREVIEW_EDGE {
+        let (scaled_w, scaled_h) = scaled_dimensions(width, height);
+        (
+            scaled_w,
+            scaled_h,
+            downscale_nearest(&rgb, width, height, scaled_w, scaled_h),
+        )
+    } else {
+        (width, height, rgb)
+    };
+
+    let mut jpeg = Vec::new();
+    let encoder = Encoder::new(&mut jpeg, JPEG_QUALITY);
+    encoder
+        .encode(&out_rgb, out_w as u16, out_h as u16, ColorType::Rgb)
+        .map_err(|e| format!("encode JPEG: {e}"))?;
+    Ok(jpeg)
+}
+
+/// Convert the decoded interleaved samples to 8-bit RGB.
+///
+/// `stream_no_alpha()` drops alpha but keeps a black channel, so 4 channels
+/// means CMYK. Previews are normally 3-channel RGB; grayscale is expanded.
+fn to_rgb(samples: &[u8], width: u32, height: u32, channels: u32) -> Result<Vec<u8>, String> {
+    let pixels = (width as usize)
+        .checked_mul(height as usize)
+        .ok_or_else(|| "decoded JXL dimensions overflow".to_string())?;
+
+    match channels {
+        3 => Ok(samples[..pixels * 3].to_vec()),
+        1 => {
+            let mut rgb = Vec::with_capacity(pixels * 3);
+            for &gray in &samples[..pixels] {
+                rgb.extend_from_slice(&[gray, gray, gray]);
+            }
+            Ok(rgb)
+        }
+        4 => {
+            let mut rgb = Vec::with_capacity(pixels * 3);
+            for pixel in samples[..pixels * 4].chunks_exact(4) {
+                let k = pixel[3] as u16;
+                for &channel in &pixel[..3] {
+                    let c = channel as u16;
+                    rgb.push(255u16.saturating_sub((c + k).min(255)) as u8);
+                }
+            }
+            Ok(rgb)
+        }
+        other => Err(format!("unsupported JXL channel count {other}")),
+    }
+}
+
+/// Scale dimensions so the long edge is `MAX_PREVIEW_EDGE`, preserving aspect
+/// ratio and never enlarging a small image.
+fn scaled_dimensions(width: u32, height: u32) -> (u32, u32) {
+    if width >= height {
+        let scaled = ((height as u64 * MAX_PREVIEW_EDGE as u64) / width as u64).max(1);
+        (MAX_PREVIEW_EDGE, scaled as u32)
+    } else {
+        let scaled = ((width as u64 * MAX_PREVIEW_EDGE as u64) / height as u64).max(1);
+        (scaled as u32, MAX_PREVIEW_EDGE)
+    }
+}
+
+/// Nearest-neighbour downscale of an interleaved RGB buffer. Preview quality is
+/// dominated by the JXL decode; the resize only has to be fast and predictable.
+fn downscale_nearest(src: &[u8], src_w: u32, src_h: u32, dst_w: u32, dst_h: u32) -> Vec<u8> {
+    let mut out = vec![0u8; dst_w as usize * dst_h as usize * 3];
+    for y in 0..dst_h {
+        let sy = (y as u64 * src_h as u64 / dst_h as u64) as usize;
+        for x in 0..dst_w {
+            let sx = (x as u64 * src_w as u64 / dst_w as u64) as usize;
+            let src_idx = (sy * src_w as usize + sx) * 3;
+            let dst_idx = (y as usize * dst_w as usize + x as usize) * 3;
+            out[dst_idx..dst_idx + 3].copy_from_slice(&src[src_idx..src_idx + 3]);
+        }
+    }
+    out
 }
 
 /// One-shot decode in the child process. Returns the process exit code.

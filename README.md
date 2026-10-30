@@ -10,14 +10,16 @@ This app also gives you previews of Adobe **InDesign** files (.INDD).
 The app tries several strategies in order, stopping at the first that succeeds:
 
 1. **Embedded JPEG** — most RAW files carry a full-resolution JPEG preview baked in by the camera. This is fast and lossless.
-2. **MRW** — Minolta RAW files get their own dedicated extractor.
-3. **InDesign** — Adobe InDesign documents embed a page preview in XMP.
-4. **Imagick TIFF** — for TIFF-based files with no embedded JPEG (e.g. plain TIFFs, some DNGs), ImageMagick is used if available.
-5. **rs-fallback** — a bundled native binary (built with [libraw](https://www.libraw.org/)) develops the RAW data directly. This is the last resort for files that have no extractable preview.
+2. **Embedded JPEG XL** — some DNG/ProRAW files store a larger preview as JPEG XL. It is used only when it is larger than the best embedded JPEG, and is converted to JPEG with the bundled fallback binary.
+3. **MRW** — Minolta RAW files get their own dedicated extractor.
+4. **InDesign** — Adobe InDesign documents embed a page preview in XMP.
+5. **Imagick TIFF** — for TIFF-based files with no embedded JPEG (e.g. plain TIFFs, some DNGs), ImageMagick is used if available.
+6. **rs-fallback** — a bundled native binary (built with [libraw](https://www.libraw.org/)) develops the RAW data directly. This is the last resort for files that have no extractable preview.
 
 ## Requirements
 
 - The **gd** PHP module (required by Nextcloud itself).
+- The bundled **rs-fallback** binary must be present and executable for JPEG XL preview conversion. Without it, files that only have a larger JPEG XL preview fall back to their embedded JPEG.
 - The **imagick** PHP module is optional. It is only needed for TIFF-based files with no embedded JPEG preview.
 - A reasonably high **memory_limit** in PHP (e.g. 512M or more for large RAW files).
 

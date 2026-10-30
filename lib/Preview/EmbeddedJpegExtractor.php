@@ -20,6 +20,20 @@ class EmbeddedJpegExtractor implements FormatExtractor
     private const MIN_JPEG_SIZE = 100;
 
     /**
+     * Per-reader results, so one extraction pass that consults the embedded
+     * JPEG both for comparison and as the fallback result scans and decodes it
+     * only once. A WeakMap keeps the cache tied to the reader's lifetime; the
+     * array wrapper lets null ("no embedded JPEG") be cached too.
+     *
+     * The cache assumes the file behind a reader does not change while the
+     * reader is alive; PreviewExtractor creates one reader per extraction, so
+     * this holds.
+     *
+     * @var \WeakMap<FileReader, array{0: string|null}>|null
+     */
+    private static ?\WeakMap $results = null;
+
+    /**
      * Always worth attempting — the scan simply finds nothing on files without
      * an embedded JPEG, and the caller falls through to the next extractor.
      */
@@ -43,6 +57,22 @@ class EmbeddedJpegExtractor implements FormatExtractor
     }
 
     public function extract(FileReader $reader): ?string
+    {
+        self::$results ??= new \WeakMap();
+        if (self::$results->offsetExists($reader)) {
+            return self::$results[$reader][0];
+        }
+
+        $result = $this->scan($reader);
+        self::$results[$reader] = [$result];
+
+        return $result;
+    }
+
+    /**
+     * Scan the file for the largest decodable embedded JPEG.
+     */
+    private function scan(FileReader $reader): ?string
     {
         $starts = $reader->findAll(self::START_MARKER);
         if (empty($starts)) {
