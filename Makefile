@@ -141,7 +141,7 @@ appstore: bin/rs-fallback-linux-x86_64
 	cp -r $(vendor_directory) $(appstore_build_directory)/$(app_name)/vendor
 	cp bin/rs-fallback-linux-* $(appstore_build_directory)/$(app_name)/bin/
 
-	docker run --rm -v $(appstore_build_directory)/$(app_name):/$(app_name):z -v ~/.nextcloud/certificates:/certs:z nextcloud:33-apache php /usr/src/nextcloud/occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
+	$(container_runtime) run --rm -v $(appstore_build_directory)/$(app_name):/$(app_name):z -v ~/.nextcloud/certificates:/certs:z nextcloud:33-apache php /usr/src/nextcloud/occ integrity:sign-app --path=/$(app_name) --privateKey="/certs/camerarawpreviews.key" --certificate="/certs/camerarawpreviews.crt"
 	tar -czf build/$(app_name)_nextcloud.tar.gz -C "$(appstore_build_directory)" $(app_name)
 	openssl dgst -sha512 -sign ~/.nextcloud/certificates/camerarawpreviews.key build/camerarawpreviews_nextcloud.tar.gz | openssl base64
 
