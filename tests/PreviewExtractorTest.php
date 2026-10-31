@@ -2,6 +2,8 @@
 
 namespace OCA\CameraRawPreviews\Tests;
 
+use OCA\CameraRawPreviews\Preview\InDesignExtractor;
+use OCA\CameraRawPreviews\Preview\Support\FileReader;
 use OCA\CameraRawPreviews\PreviewExtractor;
 use OCA\CameraRawPreviews\Tests\Support\TiffBuilder;
 use PHPUnit\Framework\TestCase;
@@ -268,6 +270,28 @@ class PreviewExtractorTest extends TestCase
         $this->assertNotNull($result);
         $this->assertSame($jpeg, $result);
         $this->assertDimensions(256, 144, $result);
+    }
+
+    public function testInDesignSkipsJpegWithAbsurdDeclaredDimensions(): void
+    {
+        // The base64 payload is small, but its SOF claims 65535x65535 pixels.
+        // It must be rejected from the header, before GD tries to allocate it.
+        $huge = $this->withDeclaredSize($this->makeJpeg(640, 480), 65535, 65535);
+        $body = self::INDESIGN_GUID . 'DOCUMENT' . str_repeat("\x00", 64)
+            . '<xmpGImg:image>' . chunk_split(base64_encode($huge)) . '</xmpGImg:image>'
+            . str_repeat("\x00", 16);
+
+        $path = $this->writeTmp($body);
+        $reader = FileReader::open($path);
+        $this->assertNotNull($reader);
+
+        try {
+            $result = (new InDesignExtractor())->extract($reader);
+        } finally {
+            $reader->close();
+        }
+
+        $this->assertNull($result, 'An absurd JPEG header must be rejected without a GD decode');
     }
 
     public function testInDesignSkipsBinaryContaminatedCopyForCleanCopy(): void

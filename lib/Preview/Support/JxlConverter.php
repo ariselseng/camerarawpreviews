@@ -143,7 +143,11 @@ class JxlConverter
 
         // Trust only a real, parseable JPEG. getResolution() rejects non-JPEG
         // output as well as single-channel (raw sensor) JPEGs.
-        return JpegValidator::getResolution($stdout) !== null ? $stdout : null;
+        $resolution = JpegValidator::getResolution($stdout);
+        if ($resolution === null || !JpegValidator::canDecode($resolution[0], $resolution[1])) {
+            return null;
+        }
+        return $stdout;
     }
 
     /**

@@ -13,6 +13,8 @@
         <testsuite name="unit">
             <file>tests/PreviewExtractorTest.php</file>
             <file>tests/FileReaderTest.php</file>
+            <file>tests/JpegValidatorTest.php</file>
+            <file>tests/TiffImagickExtractorTest.php</file>
             <file>tests/JxlPreviewExtractorTest.php</file>
             <file>tests/OrientationReaderTest.php</file>
             <file>tests/JpegOrienterTest.php</file>

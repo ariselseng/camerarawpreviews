@@ -79,7 +79,12 @@ class InDesignExtractor implements FormatExtractor
                 continue;
             }
 
-            if (JpegValidator::getResolution($jpeg) !== null && JpegValidator::isDecodable($jpeg)) {
+            $resolution = JpegValidator::getResolution($jpeg);
+            if (
+                $resolution !== null
+                && JpegValidator::canDecode($resolution[0], $resolution[1])
+                && JpegValidator::isDecodable($jpeg)
+            ) {
                 return $jpeg;
             }
         }

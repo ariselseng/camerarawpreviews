@@ -21,6 +21,11 @@ class RawCliRenderer
 {
     /** Don't hang a preview request forever on a wedged decoder. */
     private const TIMEOUT_SECONDS = 30;
+    /**
+     * Refuse to accumulate more than this from the renderer. A preview JPEG is
+     * a few MB at most, so a larger stream means the child misbehaved.
+     */
+    private const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
     /**
      * Render a preview for $filePath by running the CLI.
@@ -65,11 +70,19 @@ class RawCliRenderer
         // returns -1. So capture the code here rather than from proc_close.
         $exit = -1;
         $timedOut = false;
+        $overflow = false;
 
         while (true) {
             $status = proc_get_status($proc);
             $chunk = stream_get_contents($pipes[1]);
             if ($chunk !== false && $chunk !== '') {
+                if (strlen($stdout) + strlen($chunk) > self::MAX_OUTPUT_BYTES) {
+                    // A correct renderer cannot emit this much. Stop reading
+                    // and treat the run as failed rather than buffering it.
+                    proc_terminate($proc, 9);
+                    $overflow = true;
+                    break;
+                }
                 $stdout .= $chunk;
             }
             // Drain stderr so the child can't block on a full pipe.
@@ -90,19 +103,24 @@ class RawCliRenderer
         // Final drain after exit.
         $tail = stream_get_contents($pipes[1]);
         if ($tail !== false && $tail !== '') {
-            $stdout .= $tail;
+            if (strlen($stdout) + strlen($tail) > self::MAX_OUTPUT_BYTES) {
+                $overflow = true;
+            } else {
+                $stdout .= $tail;
+            }
         }
 
         fclose($pipes[1]);
         fclose($pipes[2]);
         proc_close($proc);
 
-        if ($timedOut || $exit !== 0 || $stdout === '') {
+        if ($timedOut || $overflow || $exit !== 0 || $stdout === '') {
             return null;
         }
 
-        // Sanity-check the result really is a JPEG (SOI marker).
-        if (substr($stdout, 0, 2) !== "\xFF\xD8") {
+        // Trust only a real, parseable JPEG, and only one GD can decode.
+        $resolution = JpegValidator::getResolution($stdout);
+        if ($resolution === null || !JpegValidator::canDecode($resolution[0], $resolution[1])) {
             return null;
         }
 

@@ -8,6 +8,15 @@ namespace OCA\CameraRawPreviews\Preview\Support;
 class JpegValidator
 {
     /**
+     * Largest image handed to GD. Real full-size embedded previews are around
+     * 45-50 MP; 64 MP leaves room for those while stopping a crafted header
+     * from claiming 65535x65535 pixels (~16 TB of GD bitmap).
+     */
+    private const MAX_DECODE_PIXELS = 64_000_000;
+    /** GD truecolour images need four bytes per pixel. */
+    private const GD_BYTES_PER_PIXEL = 4;
+
+    /**
      * Read a JPEG's pixel dimensions from its header.
      *
      * @param string $data Raw JPEG bytes.
@@ -28,6 +37,53 @@ class JpegValidator
             return null;
         }
         return [$info[0], $info[1]];
+    }
+
+    /**
+     * Whether GD can plausibly decode an image of this size without exceeding
+     * the PHP memory limit. Header-only check: no image data is decoded.
+     */
+    public static function canDecode(int $width, int $height): bool
+    {
+        if ($width <= 0 || $height <= 0) {
+            return false;
+        }
+        // intdiv keeps the comparison exact and avoids overflowing the product.
+        if ($width > intdiv(self::MAX_DECODE_PIXELS, $height)) {
+            return false;
+        }
+
+        $pixels = $width * $height;
+        $limit = self::memoryLimitBytes();
+        if ($limit === null) {
+            return true; // no limit configured
+        }
+
+        $available = $limit - memory_get_usage(true);
+        return $available > 0 && $pixels <= intdiv($available, self::GD_BYTES_PER_PIXEL);
+    }
+
+    /**
+     * The configured memory_limit in bytes, or null when unlimited/unknown.
+     */
+    private static function memoryLimitBytes(): ?int
+    {
+        $raw = trim((string)ini_get('memory_limit'));
+        if ($raw === '' || $raw === '-1') {
+            return null;
+        }
+
+        $value = (int)$raw;
+        if ($value <= 0) {
+            return null;
+        }
+
+        return match (strtolower(substr($raw, -1))) {
+            'g' => $value * 1024 * 1024 * 1024,
+            'm' => $value * 1024 * 1024,
+            'k' => $value * 1024,
+            default => $value,
+        };
     }
 
     /**

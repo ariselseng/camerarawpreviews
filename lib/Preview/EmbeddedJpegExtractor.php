@@ -37,16 +37,6 @@ class EmbeddedJpegExtractor implements FormatExtractor
     private const MAX_TOTAL_MARKER_STEPS = 65536;
 
     /**
-     * Largest image handed to GD for the decodability check. The largest
-     * real-world full-size previews are around 45-50 MP (Canon R5, Nikon Z9);
-     * 64 MP leaves room for that without letting a crafted header claim
-     * 65535x65535 pixels and make GD try to allocate tens of gigabytes.
-     */
-    private const MAX_DECODE_PIXELS = 64_000_000;
-    /** GD truecolour images need four bytes per pixel. */
-    private const GD_BYTES_PER_PIXEL = 4;
-
-    /**
      * Per-reader results, so one extraction pass that consults the embedded
      * JPEG both for comparison and as the fallback result scans and decodes it
      * only once. A WeakMap keeps the cache tied to the reader's lifetime; the
@@ -144,16 +134,15 @@ class EmbeddedJpegExtractor implements FormatExtractor
                 continue;
             }
 
-            $pixels = $dimensions[0] * $dimensions[1];
             // Never ask GD to allocate more than the dimensions and the current
             // memory limit allow; a crafted header could otherwise OOM PHP.
-            if (!$this->canDecode($pixels)) {
+            if (!JpegValidator::canDecode($dimensions[0], $dimensions[1])) {
                 continue;
             }
 
             $candidates[] = [
                 'data' => $data,
-                'pixels' => $pixels,
+                'pixels' => $dimensions[0] * $dimensions[1],
                 'size' => $size,
             ];
             $keptBytes += $size;
@@ -176,48 +165,6 @@ class EmbeddedJpegExtractor implements FormatExtractor
         }
 
         return null;
-    }
-
-    /**
-     * Whether GD can plausibly decode an image of this many pixels without
-     * exceeding the PHP memory limit.
-     */
-    private function canDecode(int $pixels): bool
-    {
-        if ($pixels <= 0 || $pixels > self::MAX_DECODE_PIXELS) {
-            return false;
-        }
-
-        $limit = $this->memoryLimitBytes();
-        if ($limit === null) {
-            return true; // no limit configured
-        }
-
-        $available = $limit - memory_get_usage(true);
-        return $available > 0 && $pixels <= intdiv($available, self::GD_BYTES_PER_PIXEL);
-    }
-
-    /**
-     * The configured memory_limit in bytes, or null when unlimited/unknown.
-     */
-    private function memoryLimitBytes(): ?int
-    {
-        $raw = trim((string)ini_get('memory_limit'));
-        if ($raw === '' || $raw === '-1') {
-            return null;
-        }
-
-        $value = (int)$raw;
-        if ($value <= 0) {
-            return null;
-        }
-
-        return match (strtolower(substr($raw, -1))) {
-            'g' => $value * 1024 * 1024 * 1024,
-            'm' => $value * 1024 * 1024,
-            'k' => $value * 1024,
-            default => $value,
-        };
     }
 
     /**
