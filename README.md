@@ -56,3 +56,13 @@ $ bin/extract-preview rawfile.dng
 ```
 
 On success it reports which extractor handled the file, the JPEG size and whether the result decodes, and writes the preview next to the input. On failure it reports that no preview could be extracted.
+
+## Licensing
+
+The app is licensed under the GNU Affero General Public License, version 3 or
+later; see `COPYING`.
+
+The bundled `rs-fallback` binary includes third-party components under their
+own licences, including LibRaw (LGPL-2.1) and `raw_preview_rs` (GPL-3.0). See
+`THIRD_PARTY_NOTICES.md` and `LICENSES/` for details, source links and the
+written offer for the LibRaw source.
