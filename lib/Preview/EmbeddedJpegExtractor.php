@@ -20,6 +20,23 @@ class EmbeddedJpegExtractor implements FormatExtractor
     private const MIN_JPEG_SIZE = 100;
 
     /**
+     * Bounds for scanning an untrusted container. A real RAW carries a handful
+     * of previews; these limits only bite on files crafted to make the scan
+     * expensive, and then the extractor simply reports "no preview".
+     */
+    private const MAX_STARTS = 4096;
+    private const MAX_CANDIDATE_BYTES = 64 * 1024 * 1024;
+    /** Total candidate bytes read from the file during one scan. */
+    private const MAX_SCAN_BYTES = 256 * 1024 * 1024;
+    /** Largest candidates retained for the decodability check at the end. */
+    private const MAX_KEPT_CANDIDATES = 4;
+    private const MAX_KEPT_BYTES = 96 * 1024 * 1024;
+    /** Marker segments walked before giving up on one candidate. */
+    private const MAX_MARKER_STEPS = 4096;
+    /** Marker segments walked across the whole scan. */
+    private const MAX_TOTAL_MARKER_STEPS = 65536;
+
+    /**
      * Per-reader results, so one extraction pass that consults the embedded
      * JPEG both for comparison and as the fallback result scans and decodes it
      * only once. A WeakMap keeps the cache tied to the reader's lifetime; the
@@ -71,30 +88,46 @@ class EmbeddedJpegExtractor implements FormatExtractor
 
     /**
      * Scan the file for the largest decodable embedded JPEG.
+     *
+     * Only a few candidates are retained at a time, so a container full of
+     * valid-looking JPEGs cannot make the scan hold an unbounded amount of
+     * data. The survivors are checked with GD in descending resolution order,
+     * preserving the fallback to the next candidate when one is corrupt.
      */
     private function scan(FileReader $reader): ?string
     {
-        $starts = $reader->findAll(self::START_MARKER);
+        $starts = $reader->findAll(self::START_MARKER, self::MAX_STARTS);
         if (empty($starts)) {
             return null;
         }
 
         $candidates = [];
+        $keptBytes = 0;
+        $scanBudget = self::MAX_SCAN_BYTES;
+        $stepsLeft = self::MAX_TOTAL_MARKER_STEPS;
+
         foreach ($starts as $start) {
-            $end = $this->findJpegEnd($reader, $start);
+            if ($stepsLeft <= 0) {
+                break; // marker-walk budget spent: stop scanning this file
+            }
+            $end = $this->findJpegEnd($reader, $start, $stepsLeft);
             if ($end === null) {
                 continue;
             }
 
             $size = $end - $start;
-            if ($size <= self::MIN_JPEG_SIZE) {
+            if ($size <= self::MIN_JPEG_SIZE || $size > self::MAX_CANDIDATE_BYTES) {
                 continue;
+            }
+            if ($size > $scanBudget) {
+                break; // total read budget spent: stop scanning this file
             }
 
             $data = $reader->readBytes($start, $size);
             if ($data === null) {
                 continue;
             }
+            $scanBudget -= $size;
 
             $dimensions = JpegValidator::getResolution($data);
             if ($dimensions === null) {
@@ -104,15 +137,20 @@ class EmbeddedJpegExtractor implements FormatExtractor
             $candidates[] = [
                 'data' => $data,
                 'pixels' => $dimensions[0] * $dimensions[1],
+                'size' => $size,
             ];
-        }
+            $keptBytes += $size;
 
-        if (empty($candidates)) {
-            return null;
+            // Highest resolution first; drop the smallest until both caps hold.
+            usort($candidates, static fn($a, $b) => $b['pixels'] <=> $a['pixels']);
+            while (
+                (count($candidates) > self::MAX_KEPT_CANDIDATES || $keptBytes > self::MAX_KEPT_BYTES)
+                && $candidates !== []
+            ) {
+                $dropped = array_pop($candidates);
+                $keptBytes -= $dropped['size'];
+            }
         }
-
-        // Highest resolution first.
-        usort($candidates, static fn($a, $b) => $b['pixels'] <=> $a['pixels']);
 
         foreach ($candidates as $candidate) {
             if (JpegValidator::isDecodable($candidate['data'])) {
@@ -131,16 +169,23 @@ class EmbeddedJpegExtractor implements FormatExtractor
      *
      * @return int|null Absolute offset just past the EOI (FF D9), or null.
      */
-    private function findJpegEnd(FileReader $reader, int $start): ?int
+    private function findJpegEnd(FileReader $reader, int $start, int &$stepsLeft): ?int
     {
         if ($reader->readAt($start, 2) !== "\xFF\xD8") {
             return null;
         }
 
         $fileSize = $reader->size();
+        // A candidate larger than the cap is rejected anyway; stopping the walk
+        // here also bounds the work spent on a crafted marker chain.
+        $limit = min($fileSize, $start + self::MAX_CANDIDATE_BYTES);
         $pos = $start + 2;
+        $steps = 0;
 
-        while ($pos < $fileSize) {
+        while ($pos < $limit) {
+            if (++$steps > self::MAX_MARKER_STEPS || --$stepsLeft < 0) {
+                return null;
+            }
             $header = $reader->readAt($pos, 2);
             if ($header === null || strlen($header) < 2 || $header[0] !== "\xFF") {
                 return null;
@@ -175,7 +220,7 @@ class EmbeddedJpegExtractor implements FormatExtractor
 
             // Start of Scan: entropy-coded data of unknown length follows.
             if ($marker === 0xDA) {
-                $next = $this->scanNextMarker($reader, $segmentEnd);
+                $next = $this->scanNextMarker($reader, $segmentEnd, $limit);
                 if ($next === null) {
                     return null;
                 }
@@ -193,14 +238,14 @@ class EmbeddedJpegExtractor implements FormatExtractor
      * Scan entropy-coded data for the next real marker, skipping stuffed bytes
      * (FF 00) and restart markers (FF D0-D7).
      */
-    private function scanNextMarker(FileReader $reader, int $from): ?int
+    private function scanNextMarker(FileReader $reader, int $from, int $limit): ?int
     {
-        $fileSize = $reader->size();
+        $limit = min($limit, $reader->size());
         $pos = $from;
         $carry = '';
 
-        while ($pos < $fileSize) {
-            $chunk = $reader->readAt($pos, self::CHUNK_SIZE);
+        while ($pos < $limit) {
+            $chunk = $reader->readAt($pos, min(self::CHUNK_SIZE, $limit - $pos));
             if ($chunk === null || $chunk === '') {
                 break;
             }

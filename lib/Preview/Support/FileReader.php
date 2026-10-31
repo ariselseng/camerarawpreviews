@@ -137,12 +137,19 @@ class FileReader
     }
 
     /**
-     * Find every occurrence of $needle in the file.
+     * Find occurrences of $needle in the file, up to $limit of them.
+     *
+     * The limit exists so a caller can scan an untrusted file without letting a
+     * crafted run of matches grow an unbounded offset array.
      *
      * @return int[] Sorted, de-duplicated absolute offsets.
      */
-    public function findAll(string $needle): array
+    public function findAll(string $needle, int $limit = PHP_INT_MAX): array
     {
+        if ($limit <= 0) {
+            return [];
+        }
+
         $overlap = max(strlen($needle) - 1, 0);
         $positions = [];
 
@@ -160,6 +167,11 @@ class FileReader
                 $actual = $bufferOffset - strlen($prev) + $pos;
                 if ($actual >= 0) {
                     $positions[$actual] = true; // key-dedupe across overlaps
+                    if (count($positions) >= $limit) {
+                        $offsets = array_keys($positions);
+                        sort($offsets);
+                        return $offsets;
+                    }
                 }
                 $searchOffset = $pos + 1;
             }

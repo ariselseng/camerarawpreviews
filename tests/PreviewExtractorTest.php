@@ -108,6 +108,21 @@ class PreviewExtractorTest extends TestCase
         $this->assertDimensions(800, 600, $result);
     }
 
+    public function testFindsJpegAmongManyStartMarkers(): void
+    {
+        // Far more FF D8 FF occurrences than the scanner examines. The real
+        // preview comes first, so the bounded start list still contains it.
+        $jpeg = $this->makeJpeg(320, 240);
+        $noise = str_repeat("\xFF\xD8\xFF\x00", 5000);
+        $path = $this->writeTmp(str_repeat("\x00", 512) . $jpeg . $noise);
+
+        $result = PreviewExtractor::extractPreview($path);
+
+        $this->assertNotNull($result);
+        $this->assertSame($jpeg, $result);
+        $this->assertDimensions(320, 240, $result);
+    }
+
     public function testSkipsEmbeddedExifThumbnailAndReturnsFullImage(): void
     {
         // Regression test: an EXIF APP1 segment carrying a thumbnail contains
