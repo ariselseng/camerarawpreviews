@@ -104,6 +104,21 @@ class JpegOrienterTest extends TestCase
         $this->assertSame($garbage, JpegOrienter::makeUpright($garbage, 6));
     }
 
+    public function testReturnsAbsurdDimensionsUnchangedWithoutDecoding(): void
+    {
+        $jpeg = $this->makeMarkedJpeg();
+        $pos = strpos($jpeg, "\xFF\xC0");
+        $this->assertNotFalse($pos, 'Fixture has no SOF0 marker');
+
+        // Claim 65535x65535 pixels; the entropy data is still the tiny image.
+        $jpeg[$pos + 5] = "\xFF";
+        $jpeg[$pos + 6] = "\xFF";
+        $jpeg[$pos + 7] = "\xFF";
+        $jpeg[$pos + 8] = "\xFF";
+
+        $this->assertSame($jpeg, JpegOrienter::makeUpright($jpeg, 6));
+    }
+
     // ---------------------------------------------------------------------
     // Fixture helpers
     // ---------------------------------------------------------------------

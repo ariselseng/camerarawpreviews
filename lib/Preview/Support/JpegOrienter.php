@@ -70,6 +70,13 @@ class JpegOrienter
      */
     private static function applyWithGd(string $jpeg, int $orientation): ?string
     {
+        // Defence in depth: every current caller filters candidates first, but
+        // never hand GD a header whose bitmap could not possibly fit.
+        $resolution = JpegValidator::getResolution($jpeg);
+        if ($resolution === null || !JpegValidator::canDecode($resolution[0], $resolution[1])) {
+            return null;
+        }
+
         $image = @imagecreatefromstring($jpeg);
         if ($image === false) {
             return null;
