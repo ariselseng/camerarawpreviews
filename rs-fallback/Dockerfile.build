@@ -10,10 +10,15 @@
 
 FROM rust:1-bullseye AS build
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Bullseye is EOL and its security pool has been purged, so the stale
+# bullseye-security index 404s on package downloads. The build only needs a C++
+# toolchain and cmake: raw_preview_rs downloads and statically links LibRaw,
+# zlib and libjpeg-turbo itself, so libraw-dev is not needed.
+RUN sed -i '/bullseye-security/d' /etc/apt/sources.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
         cmake \
         g++ \
-        libraw-dev \
         pkg-config \
     && rm -rf /var/lib/apt/lists/*
 

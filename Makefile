@@ -122,15 +122,28 @@ source:
 	--exclude="../$(app_name)/*.log" \
 	--exclude="../$(app_name)/js/*.log" \
 
-# Build the rs-fallback binary only when sources are newer than the binary.
-# `find` lists every file under rs-fallback/ so any change triggers a rebuild.
-rs_fallback_sources := $(shell find rs-fallback -type f)
-bin/rs-fallback-linux-x86_64: $(rs_fallback_sources)
-	bash rs-fallback/build.sh x86_64
+# Build the bundled rs-fallback binary for one architecture only when sources
+# are newer than the binary. Every file under rs-fallback/ is a dependency, so
+# any Rust change triggers a rebuild.
+rs_fallback_sources := $(shell find rs-fallback -type f -not -path 'rs-fallback/target/*')
+bin/rs-fallback-linux-%: $(rs_fallback_sources)
+	bash rs-fallback/build.sh $*
+
+# Architectures that `make appstore` requires. Set it to ship both:
+#   make appstore rs_fallback_archs="x86_64 aarch64"
+# aarch64 needs QEMU binfmt on an x86_64 host, or an aarch64 host; see
+# rs-fallback/build.sh.
+rs_fallback_archs ?= x86_64
+rs_fallback_bins := $(addprefix bin/rs-fallback-linux-,$(rs_fallback_archs))
+
+# Builds both architectures explicitly. `make appstore` copies every
+# bin/rs-fallback-linux-* that exists, so this is enough to ship arm64.
+.PHONY: rs-fallback
+rs-fallback: bin/rs-fallback-linux-x86_64 bin/rs-fallback-linux-aarch64
 
 # Builds the source package for the app store, ignores php and js tests
 .PHONY: appstore
-appstore: bin/rs-fallback-linux-x86_64
+appstore: $(rs_fallback_bins)
 	rm -rf $(appstore_build_directory)
 	mkdir -p $(appstore_build_directory)/$(app_name)
 	# Copy only files tracked by git — nothing untracked or gitignored ends up

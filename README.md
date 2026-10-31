@@ -29,6 +29,24 @@ Install from the Nextcloud App Store:
 https://apps.nextcloud.com/apps/camerarawpreviews
 
 
+## Building the bundled binary
+
+`rs-fallback` is built inside a Debian bullseye container (for an old glibc)
+and copied to `bin/`:
+
+```shell
+$ bash rs-fallback/build.sh x86_64
+$ bash rs-fallback/build.sh aarch64
+```
+
+`make rs-fallback` builds both. On an x86_64 host the aarch64 build needs QEMU
+binfmt (`qemu-user-static`) or an aarch64 host. `make appstore` ships every
+`bin/rs-fallback-linux-*` that exists, or require both explicitly:
+
+```shell
+$ make appstore rs_fallback_archs="x86_64 aarch64"
+```
+
 ## Troubleshooting
 
 If you get no preview, the RAW file may have no extractable embedded preview and the rs-fallback binary may not support that format. You can diagnose this with the bundled debug tool, which runs the exact same extraction pipeline the preview provider uses:
