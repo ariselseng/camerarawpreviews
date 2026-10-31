@@ -47,6 +47,22 @@ binfmt (`qemu-user-static`) or an aarch64 host. `make appstore` ships every
 $ make appstore rs_fallback_archs="x86_64 aarch64"
 ```
 
+## Development
+
+Dependency and release checks:
+
+- `make audit` runs `cargo audit` and `composer audit`.
+- `make verify-libraw` asserts that the built binaries contain the expected
+  LibRaw release; `make appstore` runs it before packaging.
+
+The bundled binary also statically links C libraries that are not listed in
+`Cargo.lock` or `composer.lock` (LibRaw, zlib, libjpeg-turbo, TinyEXIF,
+tinyxml2, stb_image). Package audits cannot see them, so check their upstream
+releases before a release; versions and licences are in
+`THIRD_PARTY_NOTICES.md`. The build downloads them without checksum
+verification, and `stb_image` is fetched from `master` rather than a pinned
+commit.
+
 ## Troubleshooting
 
 If you get no preview, the RAW file may have no extractable embedded preview and the rs-fallback binary may not support that format. You can diagnose this with the bundled debug tool, which runs the exact same extraction pipeline the preview provider uses:

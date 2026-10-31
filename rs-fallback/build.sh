@@ -15,6 +15,7 @@
 #
 # Usage:  ./build.sh [x86_64|aarch64|all]   (default: all)
 # Env:    CONTAINER_RUNTIME=docker|podman   (default: docker if present, else podman)
+#         LIBRAW_VERSION=<version>          (default: the Dockerfile's 0.22.3)
 # Output: ../bin/rs-fallback-linux-x86_64
 #         ../bin/rs-fallback-linux-aarch64
 
@@ -32,6 +33,11 @@ if [[ -z "$RUNTIME" ]]; then
     exit 1
 fi
 ENGINE="$(basename "$RUNTIME")"
+
+BUILD_ARGS=()
+if [[ -n "${LIBRAW_VERSION:-}" ]]; then
+    BUILD_ARGS+=(--build-arg "LIBRAW_VERSION=${LIBRAW_VERSION}")
+fi
 
 case "$(uname -m)" in
     x86_64|amd64)  HOST_ARCH="x86_64" ;;
@@ -54,7 +60,7 @@ for ARCH in "${ARCHS[@]}"; do
     if [[ "$ARCH" == "$HOST_ARCH" ]]; then
         # Native build — plain build uses the host network, avoiding the
         # buildx layer that has caused timeouts in raw_preview_rs's build.rs.
-        "$RUNTIME" build -f Dockerfile.build -t "$IMAGE_TAG" .
+        "$RUNTIME" build "${BUILD_ARGS[@]}" -f Dockerfile.build -t "$IMAGE_TAG" .
         cid="$("$RUNTIME" create "$IMAGE_TAG")"
     else
         case "$ARCH" in
@@ -75,9 +81,10 @@ for ARCH in "${ARCHS[@]}"; do
         fi
 
         if [[ "$ENGINE" == "podman" ]]; then
-            "$RUNTIME" build --platform "$PLATFORM" -f Dockerfile.build -t "$IMAGE_TAG" .
+            "$RUNTIME" build "${BUILD_ARGS[@]}" --platform "$PLATFORM" \
+                -f Dockerfile.build -t "$IMAGE_TAG" .
         else
-            "$RUNTIME" buildx build --platform "$PLATFORM" --load \
+            "$RUNTIME" buildx build "${BUILD_ARGS[@]}" --platform "$PLATFORM" --load \
                 -t "$IMAGE_TAG" -f Dockerfile.build .
         fi
         cid="$("$RUNTIME" create --platform "$PLATFORM" "$IMAGE_TAG")"

@@ -65,6 +65,7 @@ binary by `raw_preview_rs`'s build script:
 | libjpeg-turbo | 2.1.5 | IJG, BSD-3-Clause and Zlib | `LICENSES/IJG.txt`, `LICENSES/libjpeg-turbo.txt` |
 | TinyEXIF | 1.0.3 | BSD-2-Clause | `LICENSES/BSD-2-Clause.txt` |
 | tinyxml2 | 11.0.0 | Zlib | `LICENSES/tinyxml2.txt` |
+| stb_image | `master` (unpinned) | Public domain or MIT | `LICENSES/MIT.txt` |
 
 This software is based in part on the work of the Independent JPEG Group.
 

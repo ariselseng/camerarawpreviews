@@ -141,9 +141,26 @@ rs_fallback_bins := $(addprefix bin/rs-fallback-linux-,$(rs_fallback_archs))
 .PHONY: rs-fallback
 rs-fallback: bin/rs-fallback-linux-x86_64 bin/rs-fallback-linux-aarch64
 
+# Version of the statically linked LibRaw. Keep in sync with LIBRAW_VERSION
+# in rs-fallback/Dockerfile.build. Package audits do not see vendored C
+# libraries, so releases verify the version in the binary explicitly.
+libraw_version ?= 0.22.3
+# Hand the same value to rs-fallback/build.sh and its container build.
+export LIBRAW_VERSION := $(libraw_version)
+
+.PHONY: verify-libraw
+verify-libraw: $(rs_fallback_bins)
+	@for bin in $^; do \
+		test -f "$$bin" || { echo "$$bin: missing"; exit 1; }; \
+		printf '%s: ' "$$bin"; \
+		strings "$$bin" | grep -q "$(libraw_version)-Release" \
+			|| { echo "LibRaw $(libraw_version) not found"; exit 1; }; \
+		echo "LibRaw $(libraw_version)"; \
+	done
+
 # Builds the source package for the app store, ignores php and js tests
 .PHONY: appstore
-appstore: $(rs_fallback_bins)
+appstore: $(rs_fallback_bins) verify-libraw
 	rm -rf $(appstore_build_directory)
 	mkdir -p $(appstore_build_directory)/$(app_name)
 	# Copy only files tracked by git — nothing untracked or gitignored ends up

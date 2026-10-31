@@ -10,6 +10,11 @@
 
 FROM rust:1-bullseye AS build
 
+# LibRaw version compiled into the binary. raw_preview_rs's build.rs pins an
+# old release, so the patch below rewrites it to this value. Keep in sync with
+# `libraw_version` in the Makefile.
+ARG LIBRAW_VERSION=0.22.3
+
 # Bullseye is EOL and its security pool has been purged, so the stale
 # bullseye-security index 404s on package downloads. The build only needs a C++
 # toolchain and cmake: raw_preview_rs downloads and statically links LibRaw,
@@ -42,17 +47,24 @@ RUN mkdir src && echo 'fn main() {}' > src/main.rs \
     && cargo build --release \
     && rm -rf src
 
-# Patch raw_preview_rs's libraw wrapper in place: the upstream crate hardcodes
-# `no_auto_bright = 1`, which disables libraw's auto-brightness and makes the
-# developed preview come out dark. Set it to 0 so the result is tonally closer
-# to the camera's embedded JPEG. The crate source is already extracted into the
-# registry by the dependency pre-build above; we edit it there and `cargo clean`
-# that one package so the final build recompiles the C++ wrapper.
+# Patch raw_preview_rs's libraw wrapper and build script in place:
+#   1. The upstream crate hardcodes `no_auto_bright = 1`, which disables
+#      libraw's auto-brightness and makes the developed preview come out dark.
+#      Set it to 0 so the result is tonally closer to the camera's JPEG.
+#   2. Its build.rs pins LibRaw 0.21.4, which is two releases behind and lacks
+#      the parser hardening in 0.22.x. Point it at LIBRAW_VERSION.
+# The crate source is already extracted into the registry by the dependency
+# pre-build above; we edit it there and `cargo clean` that one package so the
+# final build recompiles the wrapper and downloads the newer LibRaw.
 RUN set -eu; \
     wrapper="$(find /usr/local/cargo/registry/src -type f -name 'libraw_wrapper.cpp' -path '*raw_preview_rs-*' | head -1)"; \
     test -n "$wrapper"; \
     sed -i 's/no_auto_bright = 1;/no_auto_bright = 0;/g' "$wrapper"; \
-    echo "patched:"; grep -n 'no_auto_bright' "$wrapper"; \
+    echo "patched wrapper:"; grep -n 'no_auto_bright' "$wrapper"; \
+    build_script="$(find /usr/local/cargo/registry/src -type f -name 'build.rs' -path '*raw_preview_rs-*' | head -1)"; \
+    test -n "$build_script"; \
+    sed -i "s/0\.21\.4/${LIBRAW_VERSION}/g" "$build_script"; \
+    echo "patched build.rs:"; grep -n "${LIBRAW_VERSION}" "$build_script" | head -5; \
     cargo clean --release -p raw_preview_rs
 
 COPY src ./src
