@@ -123,6 +123,26 @@ class PreviewExtractorTest extends TestCase
         $this->assertDimensions(320, 240, $result);
     }
 
+    public function testSkipsJpegWithAbsurdDeclaredDimensions(): void
+    {
+        $valid = $this->makeJpeg(320, 240);
+        // Structurally valid JPEG whose SOF claims 65535x65535 pixels. GD
+        // would try to allocate ~16 TB for it, so it must be rejected from the
+        // header alone, without an imagecreatefromstring() call.
+        $huge = $this->withDeclaredSize($this->makeJpeg(640, 480), 65535, 65535);
+
+        $path = $this->writeTmp(
+            str_repeat("\x00", 1000) . $huge .
+            str_repeat("\x00", 1000) . $valid .
+            str_repeat("\x00", 1000)
+        );
+
+        $result = PreviewExtractor::extractPreview($path);
+
+        $this->assertSame($valid, $result, 'The absurd candidate must be skipped without a GD decode');
+        $this->assertDimensions(320, 240, $result);
+    }
+
     public function testSkipsEmbeddedExifThumbnailAndReturnsFullImage(): void
     {
         // Regression test: an EXIF APP1 segment carrying a thumbnail contains
@@ -304,6 +324,25 @@ class PreviewExtractorTest extends TestCase
         $data = ob_get_clean();
 
         return $data;
+    }
+
+    /**
+     * Rewrite the SOF0 dimensions of a baseline JPEG. The entropy data still
+     * decodes to the original size, but every header parser (including
+     * getimagesizefromstring) reports the patched one.
+     */
+    private function withDeclaredSize(string $jpeg, int $width, int $height): string
+    {
+        $pos = strpos($jpeg, "\xFF\xC0");
+        $this->assertNotFalse($pos, 'Fixture has no SOF0 marker');
+
+        // FF C0 | length(2) | precision(1) | height(2) | width(2)
+        $jpeg[$pos + 5] = chr(($height >> 8) & 0xFF);
+        $jpeg[$pos + 6] = chr($height & 0xFF);
+        $jpeg[$pos + 7] = chr(($width >> 8) & 0xFF);
+        $jpeg[$pos + 8] = chr($width & 0xFF);
+
+        return $jpeg;
     }
 
     /**
