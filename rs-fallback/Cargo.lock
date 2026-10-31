@@ -87,6 +87,7 @@ version = "0.1.0"
 dependencies = [
  "jpeg-encoder",
  "jxl-oxide",
+ "libc",
  "raw_preview_rs",
  "tempfile",
 ]

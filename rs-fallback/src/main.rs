@@ -31,6 +31,7 @@
 //! only reports failure when no usable JPEG was produced.
 
 use std::io::Write;
+use std::os::unix::process::CommandExt;
 use std::os::unix::process::ExitStatusExt;
 use std::process::Command;
 
@@ -319,6 +320,44 @@ enum RenderError {
     Internal(String),
 }
 
+/// Address-space cap for the libraw worker. The C decoder is the least
+/// trustworthy component, so a crafted RAW must not be able to exhaust the
+/// host. 2 GiB comfortably fits a full-resolution decode of current sensors.
+#[cfg(unix)]
+const WORKER_MAX_ADDRESS_SPACE: u64 = 2 << 30;
+/// CPU-time backstop. The parent also enforces a 30 s wall-clock timeout.
+#[cfg(unix)]
+const WORKER_MAX_CPU_SECONDS: u64 = 60;
+/// The worker writes one JPEG to a temp file; cap it like the other paths.
+#[cfg(unix)]
+const WORKER_MAX_OUTPUT_BYTES: u64 = 64 << 20;
+
+/// Apply best-effort resource limits inside the freshly forked worker.
+///
+/// This runs between fork and exec, so it must stay async-signal-safe: plain
+/// syscalls only. Failing to lower a limit is ignored — the parent's timeout
+/// and the caller's output checks still apply.
+#[cfg(unix)]
+fn limit_worker_resources() {
+    let set = |resource: libc::__rlimit_resource_t, value: u64| {
+        let limit = libc::rlimit {
+            rlim_cur: value as libc::rlim_t,
+            rlim_max: value as libc::rlim_t,
+        };
+        // SAFETY: setrlimit is a syscall with no memory effects of its own.
+        unsafe {
+            libc::setrlimit(resource, &limit);
+        }
+    };
+
+    set(libc::RLIMIT_AS, WORKER_MAX_ADDRESS_SPACE);
+    set(libc::RLIMIT_CPU, WORKER_MAX_CPU_SECONDS);
+    set(libc::RLIMIT_FSIZE, WORKER_MAX_OUTPUT_BYTES);
+    // libraw segfaults are expected on bad input; never write core dumps for
+    // attacker-controlled files.
+    set(libc::RLIMIT_CORE, 0);
+}
+
 /// Spawn the one-shot render worker for `input`, returning the JPEG it writes.
 ///
 /// A non-zero exit maps to Unprocessable/Internal; termination by signal (a
@@ -329,10 +368,21 @@ fn render_in_child(input: &str) -> Result<Vec<u8>, RenderError> {
     let exe = std::env::current_exe()
         .map_err(|e| RenderError::Internal(format!("current_exe: {e}")))?;
 
-    let result = Command::new(exe)
-        .arg(RENDER_ARG)
-        .arg(input)
-        .arg(out.path_str())
+    let mut command = Command::new(exe);
+    command.arg(RENDER_ARG).arg(input).arg(out.path_str());
+
+    #[cfg(unix)]
+    {
+        // SAFETY: the closure only calls setrlimit(), which is safe after fork.
+        unsafe {
+            command.pre_exec(|| {
+                limit_worker_resources();
+                Ok(())
+            });
+        }
+    }
+
+    let result = command
         .output()
         .map_err(|e| RenderError::Internal(format!("spawn worker: {e}")))?;
 
