@@ -58,6 +58,20 @@ class JxlPreviewExtractor implements FormatExtractor
         self::TAG_SUB_IFDS => true,
     ];
 
+    /**
+     * Tags whose values are consumed as a single integer. For these only the
+     * first value is read, so a crafted entry with a huge count cannot make the
+     * parser materialise an array it will never look at.
+     */
+    private const SCALAR_TAGS = [
+        self::TAG_NEW_SUBFILE_TYPE => true,
+        self::TAG_IMAGE_WIDTH => true,
+        self::TAG_IMAGE_LENGTH => true,
+        self::TAG_COMPRESSION => true,
+        self::TAG_PHOTOMETRIC => true,
+        self::TAG_ORIENTATION => true,
+    ];
+
     private const TYPE_BYTE = 1;
     private const TYPE_SHORT = 3;
     private const TYPE_LONG = 4;
@@ -74,10 +88,19 @@ class JxlPreviewExtractor implements FormatExtractor
     private const MAX_PIXELS = 100_000_000;
     private const MAX_IFD_ENTRIES = 4096;
     private const MAX_IFD_DEPTH = 8;
-    private const MAX_TAG_VALUES = 65_536;
-    private const MAX_SEGMENTS = 65_536;
+    /**
+     * Total IFDs visited in one parse. Depth and the visited set stop cycles,
+     * but not breadth: a file can cheaply describe a huge SubIFD tree. Real
+     * DNGs have a handful of IFDs, so this is generous.
+     */
+    private const MAX_IFDS = 512;
+    /** Array-valued tags (strips, tiles, SubIFDs) per IFD. */
+    private const MAX_TAG_VALUES = 4096;
+    private const MAX_SEGMENTS = 4096;
 
     private bool $little = true;
+    /** @var int IFDs visited during the current parse() call. */
+    private int $ifdCount = 0;
 
     public function supports(FileReader $reader): bool
     {
@@ -193,6 +216,7 @@ class JxlPreviewExtractor implements FormatExtractor
         $best = null;
         $ifd0Orientation = null;
         $visited = [];
+        $this->ifdCount = 0;
         $this->walkIfd($reader, $ifd0Offset, true, 0, $visited, $best, $ifd0Orientation);
 
         return ['best' => $best, 'ifd0Orientation' => $ifd0Orientation];
@@ -217,12 +241,16 @@ class JxlPreviewExtractor implements FormatExtractor
         if ($depth > self::MAX_IFD_DEPTH || $offset < 8 || isset($visited[$offset])) {
             return;
         }
+        if ($this->ifdCount >= self::MAX_IFDS) {
+            return; // global breadth guard: stop walking a crafted SubIFD tree
+        }
         $fileSize = $reader->size();
         if ($offset > $fileSize - 6) {
             return;
         }
 
         $visited[$offset] = true;
+        $this->ifdCount++;
 
         $countBytes = $reader->readBytes($offset, 2);
         if ($countBytes === null) {
@@ -256,7 +284,13 @@ class JxlPreviewExtractor implements FormatExtractor
             $type = $this->u16(substr($entry, 2, 2), $this->little);
             $valueCount = $this->u32(substr($entry, 4, 4), $this->little);
             $valueField = substr($entry, 8, 4);
-            $values = $this->readTagValues($reader, $type, $valueCount, $valueField);
+            $values = $this->readTagValues(
+                $reader,
+                $type,
+                $valueCount,
+                $valueField,
+                isset(self::SCALAR_TAGS[$tag])
+            );
             if ($values !== null) {
                 $tags[$tag] = $values;
             }
@@ -389,33 +423,49 @@ class JxlPreviewExtractor implements FormatExtractor
     /**
      * Read a tag's integer values, honouring inline vs out-of-line storage.
      *
+     * Scalar tags only return their first value. The inline/out-of-line
+     * decision still uses the declared count, because a count of 2+ shifts the
+     * value out of the entry regardless of how many values we want.
+     *
      * @return int[]|null
      */
-    private function readTagValues(FileReader $reader, int $type, int $count, string $valueField): ?array
-    {
+    private function readTagValues(
+        FileReader $reader,
+        int $type,
+        int $count,
+        string $valueField,
+        bool $scalar = false
+    ): ?array {
         $size = match ($type) {
             self::TYPE_BYTE => 1,
             self::TYPE_SHORT => 2,
             self::TYPE_LONG, self::TYPE_IFD => 4,
             default => null,
         };
-        if ($size === null || $count <= 0 || $count > self::MAX_TAG_VALUES) {
+        if ($size === null || $count <= 0) {
+            return null;
+        }
+        if (!$scalar && $count > self::MAX_TAG_VALUES) {
             return null;
         }
 
-        $totalSize = $count * $size;
-        if ($totalSize <= 4) {
+        $readCount = $scalar ? 1 : $count;
+        // Inline storage depends on the declared count, not on how many values
+        // we intend to read. The comparison also avoids multiplying a hostile
+        // 32-bit count into a huge value.
+        if ($count <= intdiv(4, $size)) {
             $bytes = $valueField;
         } else {
             $offset = $this->u32($valueField, $this->little);
-            $bytes = $reader->readBytes($offset, $totalSize);
+            // Read only what is consumed; a scalar tag never needs the tail.
+            $bytes = $reader->readBytes($offset, $readCount * $size);
             if ($bytes === null) {
                 return null;
             }
         }
 
         $values = [];
-        for ($i = 0; $i < $count; $i++) {
+        for ($i = 0; $i < $readCount; $i++) {
             $chunk = substr($bytes, $i * $size, $size);
             $values[] = match ($type) {
                 self::TYPE_BYTE => ord($chunk),

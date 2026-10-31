@@ -21,6 +21,11 @@ class JxlConverter
 {
     /** Don't hang a preview request forever on a wedged decoder. */
     private const DEFAULT_TIMEOUT_SECONDS = 30;
+    /**
+     * Refuse to accumulate more than this from the converter. A 4096 px q90
+     * JPEG is a few MB at most, so a larger stream means the child misbehaved.
+     */
+    private const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
     /**
      * Convert JPEG XL bytes to JPEG bytes.
@@ -88,11 +93,19 @@ class JxlConverter
         // returns -1. So capture the code here rather than from proc_close.
         $exit = -1;
         $timedOut = false;
+        $overflow = false;
 
         while (true) {
             $status = proc_get_status($proc);
             $chunk = stream_get_contents($pipes[1]);
             if ($chunk !== false && $chunk !== '') {
+                if (strlen($stdout) + strlen($chunk) > self::MAX_OUTPUT_BYTES) {
+                    // A correct converter cannot emit this much. Stop reading
+                    // and treat the run as failed rather than buffering it.
+                    proc_terminate($proc, 9);
+                    $overflow = true;
+                    break;
+                }
                 $stdout .= $chunk;
             }
             // Drain stderr so the child can't block on a full pipe.
@@ -113,14 +126,18 @@ class JxlConverter
         // Final drain after exit.
         $tail = stream_get_contents($pipes[1]);
         if ($tail !== false && $tail !== '') {
-            $stdout .= $tail;
+            if (strlen($stdout) + strlen($tail) > self::MAX_OUTPUT_BYTES) {
+                $overflow = true;
+            } else {
+                $stdout .= $tail;
+            }
         }
 
         fclose($pipes[1]);
         fclose($pipes[2]);
         proc_close($proc);
 
-        if ($timedOut || $exit !== 0 || $stdout === '') {
+        if ($timedOut || $overflow || $exit !== 0 || $stdout === '') {
             return null;
         }
 

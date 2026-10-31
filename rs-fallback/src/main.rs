@@ -144,14 +144,32 @@ fn run_jxl(input: &str) -> i32 {
 const MAX_PREVIEW_EDGE: u32 = 4096;
 /// JPEG quality for the converted preview.
 const JPEG_QUALITY: u8 = 90;
+/// Largest decoded pixel count accepted from a JXL codestream.
+///
+/// This matches the PHP-side `MAX_PIXELS`, which is checked against the TIFF
+/// tags. The codestream header is authoritative and can disagree with those
+/// tags, so the same bound is enforced here before any pixels are allocated.
+const MAX_DECODE_PIXELS: u64 = 100_000_000;
+/// Upper bound on memory the JXL decoder may allocate. A crafted codestream
+/// otherwise makes `render_frame()` reserve arbitrary amounts before the
+/// dimension check below would ever run.
+const MAX_DECODE_ALLOC_BYTES: usize = 2 << 30; // 2 GiB
 
 /// Decode a bare JPEG XL codestream or container to an sRGB JPEG.
 fn convert_jxl(input: &str) -> Result<Vec<u8>, String> {
     use jpeg_encoder::{ColorType, Encoder};
-    use jxl_oxide::{EnumColourEncoding, JxlImage, RenderingIntent};
+    use jxl_oxide::{AllocTracker, EnumColourEncoding, JxlImage, RenderingIntent};
 
-    let mut image =
-        JxlImage::open_with_defaults(input).map_err(|e| format!("decode JXL header: {e}"))?;
+    let file = std::fs::File::open(input).map_err(|e| format!("open JXL: {e}"))?;
+    let mut image = JxlImage::builder()
+        .alloc_tracker(AllocTracker::with_limit(MAX_DECODE_ALLOC_BYTES))
+        .read(std::io::BufReader::new(file))
+        .map_err(|e| format!("decode JXL header: {e}"))?;
+
+    // The header is parsed by now, so these are the real codestream dimensions.
+    // Reject an oversized image before `render_frame()` allocates for it.
+    check_decode_dimensions(image.width(), image.height())?;
+
     image.request_color_encoding(EnumColourEncoding::srgb(RenderingIntent::Perceptual));
 
     let render = image
@@ -228,6 +246,22 @@ fn to_rgb(samples: &[u8], width: u32, height: u32, channels: u32) -> Result<Vec<
         }
         other => Err(format!("unsupported JXL channel count {other}")),
     }
+}
+
+/// Reject JXL codestream dimensions that would make decoding allocate an
+/// unreasonable amount of memory, before `render_frame()` runs.
+fn check_decode_dimensions(width: u32, height: u32) -> Result<(), String> {
+    if width == 0 || height == 0 {
+        return Err("decoded JXL image has no pixels".to_string());
+    }
+    // u32 * u32 always fits in u64.
+    let pixels = width as u64 * height as u64;
+    if pixels > MAX_DECODE_PIXELS {
+        return Err(format!(
+            "JXL preview too large: {width}x{height} ({pixels} px, limit {MAX_DECODE_PIXELS})"
+        ));
+    }
+    Ok(())
 }
 
 /// Scale dimensions so the long edge is `MAX_PREVIEW_EDGE`, preserving aspect
@@ -371,5 +405,40 @@ impl TempOut {
             return Err(RenderError::Unprocessable("no preview produced".to_string()));
         }
         Ok(bytes)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_dimensions_accepts_reasonable_images() {
+        assert!(check_decode_dimensions(1, 1).is_ok());
+        assert!(check_decode_dimensions(4096, 4096).is_ok());
+        // Exactly at the limit is still allowed.
+        assert!(check_decode_dimensions(10_000, 10_000).is_ok());
+        assert!(check_decode_dimensions(100_000_000, 1).is_ok());
+    }
+
+    #[test]
+    fn decode_dimensions_rejects_oversized_images() {
+        assert!(check_decode_dimensions(100_000_001, 1).is_err());
+        assert!(check_decode_dimensions(10_000, 10_001).is_err());
+        assert!(check_decode_dimensions(100_000, 100_000).is_err());
+        assert!(check_decode_dimensions(u32::MAX, u32::MAX).is_err());
+    }
+
+    #[test]
+    fn decode_dimensions_rejects_zero() {
+        assert!(check_decode_dimensions(0, 1).is_err());
+        assert!(check_decode_dimensions(1, 0).is_err());
+    }
+
+    #[test]
+    fn scaled_dimensions_caps_long_edge() {
+        assert_eq!(scaled_dimensions(8192, 4096), (4096, 2048));
+        assert_eq!(scaled_dimensions(4096, 8192), (2048, 4096));
+        assert_eq!(scaled_dimensions(10_000, 1), (4096, 1));
     }
 }

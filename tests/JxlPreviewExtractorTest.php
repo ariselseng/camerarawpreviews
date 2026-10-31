@@ -322,6 +322,41 @@ class JxlPreviewExtractorTest extends TestCase
         $this->assertMarkerSha1(sha1($jxl));
     }
 
+    public function testK1_stopsAtGlobalIfdBudget(): void
+    {
+        $fakeJpeg = $this->fakeJpeg(200, 150);
+        $this->fakeConverter('success', $fakeJpeg);
+
+        $jpeg = $this->makeJpeg(320, 240);
+        $jxl = $this->fixture(self::FIXTURE_JXL_CONTAINER);
+
+        $builder = DngTiffBuilder::create()
+            ->addJpegPreview($jpeg, 320, 240);
+
+        // The parser's global IFD budget is 512. Put 600 filler SubIFDs in
+        // front of the JXL preview so the crafted candidate lies beyond it.
+        for ($i = 0; $i < 600; $i++) {
+            $builder->addSubImage([
+                'width' => 1,
+                'height' => 1,
+                'compression' => 1,
+                'photometric' => 2,
+                'newSubfileType' => 1,
+                'strips' => ["\x00"],
+                'rowsPerStrip' => 1,
+            ]);
+        }
+        $builder->addJxlPreview($jxl, 1024, 683);
+
+        $path = $this->writeTmp($builder->build());
+
+        $result = PreviewExtractor::extractPreview($path, $method);
+
+        $this->assertSame($jpeg, $result, 'The embedded JPEG must still win');
+        $this->assertSame('embedded JPEG', $method);
+        $this->assertNull($this->marker(), 'An IFD beyond the budget must not reach the converter');
+    }
+
     // =====================================================================
     // K2 — JXL wins only when strictly larger than the best JPEG
     // =====================================================================
@@ -710,6 +745,40 @@ class JxlPreviewExtractorTest extends TestCase
         $this->assertNotNull($result);
         $this->assertSame(self::METHOD, $method);
         $this->assertJpeg(240, 320, $result, 'IFD0 orientation must be used as the fallback');
+    }
+
+    public function testK5_readsFirstValueOfOutOfLineScalarTag(): void
+    {
+        $fakeJpeg = $this->fakeJpeg(320, 240);
+        $this->fakeConverter('success', $fakeJpeg);
+
+        $jxl = $this->fixture(self::FIXTURE_JXL_CONTAINER);
+        $path = $this->writeTmp(
+            DngTiffBuilder::create()
+                // Three SHORTs no longer fit in the 4-byte value field, so the
+                // orientation lives out of line. Only the first value counts.
+                ->ifd0Image([
+                    'width' => 1,
+                    'height' => 1,
+                    'compression' => 1,
+                    'photometric' => 1,
+                    'newSubfileType' => 0,
+                    'samplesPerPixel' => 1,
+                    'bitsPerSample' => [8],
+                    'strips' => ["\x00"],
+                    'rowsPerStrip' => 1,
+                    'extraTags' => [0x0112 => [3, [6, 99, 99]]],
+                ])
+                ->addJxlPreview($jxl, 1024, 683)
+                ->addJpegPreview($this->makeJpeg(320, 240), 320, 240)
+                ->build()
+        );
+
+        $result = PreviewExtractor::extractPreview($path, $method);
+
+        $this->assertNotNull($result);
+        $this->assertSame(self::METHOD, $method);
+        $this->assertJpeg(240, 320, $result, 'The first value of an out-of-line scalar tag must be used');
     }
 
     public function testK5_previewIfdOrientationWinsOverIfd0(): void
