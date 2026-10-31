@@ -152,6 +152,13 @@ appstore: bin/rs-fallback-linux-x86_64
 unit-tests: $(phpunit_phar) test-image nc-volume
 	$(container_runtime) run --rm -v $(CURDIR):/$(app_name):ro,z --workdir /$(app_name) $(test_image) php build/tools/phpunit.phar -c phpunit.xml --do-not-cache-result
 
+# Audits the Rust and PHP dependency trees against their advisory databases.
+# Requires cargo-audit (`cargo install cargo-audit`) and composer.
+.PHONY: audit
+audit:
+	cd rs-fallback && cargo audit
+	composer audit --locked
+
 # Runs the whole test suite, including the Nextcloud integration tests, against
 # the Nextcloud instance in nc_volume. The instance does not need to be running.
 .PHONY: tests
