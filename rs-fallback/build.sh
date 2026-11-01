@@ -57,18 +57,22 @@ for ARCH in "${ARCHS[@]}"; do
 
     echo ">> Building $ARCH binary with $ENGINE..."
 
+    case "$ARCH" in
+        x86_64)  PLATFORM="linux/amd64" ;;
+        aarch64) PLATFORM="linux/arm64" ;;
+        *) echo "Unknown arch: $ARCH" >&2; exit 1 ;;
+    esac
+
     if [[ "$ARCH" == "$HOST_ARCH" ]]; then
         # Native build — plain build uses the host network, avoiding the
         # buildx layer that has caused timeouts in raw_preview_rs's build.rs.
-        "$RUNTIME" build "${BUILD_ARGS[@]}" -f Dockerfile.build -t "$IMAGE_TAG" .
-        cid="$("$RUNTIME" create "$IMAGE_TAG")"
+        # Always pass --platform: without it, Buildah can reuse layers from a
+        # foreign-arch build of the same Dockerfile and tag the result with
+        # the native tag (observed: an arm64 binary in rs-fallback-linux-x86_64).
+        "$RUNTIME" build "${BUILD_ARGS[@]}" --platform "$PLATFORM" \
+            -f Dockerfile.build -t "$IMAGE_TAG" .
+        cid="$("$RUNTIME" create --platform "$PLATFORM" "$IMAGE_TAG")"
     else
-        case "$ARCH" in
-            x86_64)  PLATFORM="linux/amd64" ;;
-            aarch64) PLATFORM="linux/arm64" ;;
-            *) echo "Unknown arch: $ARCH" >&2; exit 1 ;;
-        esac
-
         # Rootless containers on Linux cannot register binfmt themselves, so
         # fail early with an actionable message instead of a confusing
         # "exec format error" halfway through the build.
